@@ -20,6 +20,9 @@ exports.getTickets = async (req, res) => {
 exports.createTicket = async (req, res) => {
 
     const { titulo, descripcion, estado_id, prioridad_id, usuario_id, area_id } = req.body;
+    if (!titulo || !descripcion || !estado_id || !prioridad_id || !usuario_id || !area_id) {
+        return res.status(400).json({ message: "Todos los campos son obligatorios" });
+    }
 
     try {
 
@@ -30,12 +33,12 @@ exports.createTicket = async (req, res) => {
         (${titulo}, ${descripcion}, ${estado_id}, ${prioridad_id}, ${usuario_id}, ${area_id})
         RETURNING *`;
 
-        res.status(201).json(result[0]);
+        res.status(201).json({message: "Ticket creado exitosamente", ticket: result[0]});
 
     } catch (error) {
 
         console.error(error);
-        res.status(500).send("Error creando ticket");
+        res.status(500).json({ message: "Error creando ticket", error: error.message });
 
     }
 

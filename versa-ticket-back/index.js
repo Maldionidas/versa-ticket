@@ -5,6 +5,8 @@ const ticketsController = require("./controllers/ticketsController");
   
 const app = express();
 app.use(express.json());
+const cors = require("cors");
+app.use(cors());
 
 app.get("/tickets", ticketsController.getTickets);
 app.post("/tickets", ticketsController.createTicket);
