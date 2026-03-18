@@ -1,15 +1,17 @@
 require("dotenv").config();
 
 const express = require("express");
-const ticketsController = require("./controllers/ticketsController");
+const ticketsRoutes = require("./routes/ticketsRoutes");
+const catalogosRoutes = require("./routes/catalogosRoutes");
   
 const app = express();
-app.use(express.json());
 const cors = require("cors");
-app.use(cors());
 
-app.get("/tickets", ticketsController.getTickets);
-app.post("/tickets", ticketsController.createTicket);
+app.use(express.json());
+app.use(cors());
+//endpoints
+app.use("/api/tickets", ticketsRoutes);
+app.use("/api/catalogos", catalogosRoutes);
 
 const PORT = process.env.PORT || 3000;
 
