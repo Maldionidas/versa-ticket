@@ -102,3 +102,22 @@ exports.getCategoriasByArea = async (req, res) => {
         res.status(500).json({ message: "Error obteniendo categorías por área" });
     }
 };
+
+// =========================
+// ROLES
+// =========================
+exports.getRoles = async (req, res) => {
+    try {
+
+        const result = await sql`
+        SELECT id, nombre
+        FROM roles
+        ORDER BY nombre`;
+
+        res.json(result);
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Error obteniendo roles" });
+    }
+};

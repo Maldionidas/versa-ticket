@@ -13,24 +13,24 @@ export function CreateTicketForm() {
         descripcion: '',
         prioridad_id: '2',
         categoria_id: '',
-        area_id: '',
-        responsable_id: '',
+        area_id: ''
     })
-    const responsables = [
-        { id: 1, nombre: 'Agente 1' },
-        { id: 2, nombre: 'Agente 2' },
-        { id: 3, nombre: 'Agente 3' },
-    ]
+    const [responsables, setResponsables] = useState([])
     useEffect(() => {
         const fetchData = async () => {
             try {
-
                 const resAreas = await fetch("http://localhost:3000/api/catalogos/areas")
                 const dataAreas = await resAreas.json()
 
                 const resPrioridades = await fetch("http://localhost:3000/api/catalogos/prioridades")
                 const dataPrioridades = await resPrioridades.json()
 
+                const resUsuarios = await fetch("http://localhost:3000/api/users/admin")
+                const dataUsuarios = await resUsuarios.json()
+
+
+
+                setResponsables(dataUsuarios)
                 setAreas(dataAreas)
                 setPrioridades(dataPrioridades)
 
@@ -235,27 +235,6 @@ export function CreateTicketForm() {
                                     {areas.map((area) => (
                                         <option key={area.id} value={area.id}>
                                             {area.nombre}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            {/* Responsable */}
-                            <div className="space-y-2">
-                                <label htmlFor="responsable_id" className="block text-sm font-medium text-foreground">
-                                    Asignar <span className="text-muted-foreground">(Opcional)</span>
-                                </label>
-                                <select
-                                    id="responsable_id"
-                                    name="responsable_id"
-                                    value={formData.responsable_id}
-                                    onChange={handleChange}
-                                    className="w-full rounded-lg border border-input bg-white px-4 py-2.5 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20"
-                                >
-                                    <option value="">Selecciona un agente...</option>
-                                    {responsables.map((responsable) => (
-                                        <option key={responsable.id} value={responsable.id}>
-                                            {responsable.nombre}
                                         </option>
                                     ))}
                                 </select>

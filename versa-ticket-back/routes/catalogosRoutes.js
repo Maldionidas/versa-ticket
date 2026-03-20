@@ -9,5 +9,6 @@ router.get("/prioridades", catalogosController.getPrioridades);
 router.get("/estados", catalogosController.getEstados);
 router.get("/categorias", catalogosController.getCategorias);
 router.get("/categorias/:area_id", catalogosController.getCategoriasByArea);
+router.get("/roles", catalogosController.getRoles);
 
 module.exports = router;
