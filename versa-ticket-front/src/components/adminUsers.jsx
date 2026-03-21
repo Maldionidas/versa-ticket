@@ -134,7 +134,7 @@ export function AdminUsers() {
 
                 const resAreas = await fetch("http://localhost:3000/api/catalogos/areas")
                 const dataAreas = await resAreas.json()
-
+                console.log("ROLES:", dataRoles)
                 setRoles(dataRoles)
                 setAreas(dataAreas)
 
@@ -181,7 +181,7 @@ export function AdminUsers() {
                                 </td>
                                 <td className="p-2 border">{u.fecha_registro}</td>
                                 <td className="p-2 border">
-                                    {/* Aquí puedes agregar botones para editar o eliminar */}
+                                    {/* botones para editar o eliminar */}
                                     <button onClick={() => handleEdit(u)} className="px-2 py-1 bg-blue-500 text-white rounded mr-2">
                                         Editar
                                     </button>
