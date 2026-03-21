@@ -19,24 +19,37 @@ exports.getTickets = async (req, res) => {
 
 exports.createTicket = async (req, res) => {
 
-    const { titulo, descripcion, estado_id, prioridad_id, usuario_id, area_id } = req.body;
+    const { titulo, descripcion, prioridad_id, categoria_id, area_id, responsable_id } = req.body;
+
+    if (!titulo || !descripcion || !prioridad_id || !area_id) {
+        return res.status(400).json({ message: "Campos obligatorios faltantes" });
+    }
 
     try {
 
+        const estado_id = 1;   // estado inicial
+        const usuario_id = 1;  // temporal hasta tener login
+        console.log(req.body);
+
         const result = await sql`
         INSERT INTO tickets
-        (titulo, descripcion, estado_id, prioridad_id, usuario_id, area_id)
+        (titulo, descripcion, estado_id, prioridad_id, categoria_id, usuario_id, responsable_id, area_id)
         VALUES
-        (${titulo}, ${descripcion}, ${estado_id}, ${prioridad_id}, ${usuario_id}, ${area_id})
+        (${titulo}, ${descripcion}, ${estado_id}, ${prioridad_id}, ${categoria_id}, ${usuario_id}, ${responsable_id}, ${area_id})
         RETURNING *`;
 
-        res.status(201).json(result[0]);
+        res.status(201).json({
+            message: "Ticket creado exitosamente",
+            ticket: result[0]
+        });
 
     } catch (error) {
 
         console.error(error);
-        res.status(500).send("Error creando ticket");
+        res.status(500).json({
+            message: "Error creando ticket",
+            error: error.message
+        });
 
     }
-
 };
