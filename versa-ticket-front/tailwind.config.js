@@ -2,6 +2,7 @@
 export default {
   content: [
     "./index.html",
+<<<<<<< HEAD
     "./src/**/*.{js,jsx}",
   ],
   theme: {
@@ -51,3 +52,12 @@ export default {
   },
   plugins: [],
 }
+=======
+    "./src/**/*.{js,jsx}"
+  ],
+  theme: {
+    extend: {},
+  },
+  plugins: [],
+}
+>>>>>>> origin/feature/register
