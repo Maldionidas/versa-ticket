@@ -2,16 +2,17 @@ import { useState } from 'react'
 import { LayoutDashboard, Ticket, PlusCircle, Settings, CircleDot } from 'lucide-react'
 import { cn } from '../lib/utils'
 import logo from '../assets/Logo-Versa.jpeg'
-import mascot  from '../assets/mascota.jpeg'
+import mascot from '../assets/mascota.jpeg'
 
-const navItems = [
-  { label: 'Panel', id: 'dashboard', icon: LayoutDashboard },
-  { label: 'Tickets', id: 'tickets', icon: Ticket },
-  { label: 'Crear Ticket', id: 'create-ticket', icon: PlusCircle },
-  { label: 'Panel de Administración', id: 'admin', icon: Settings },
-]
-
-export function TicketSidebar({ activeView, setActiveView }) {
+export function TicketSidebar({ user, activeView, setActiveView }) {
+  const navItems = [
+    { label: 'Panel', id: 'dashboard', icon: LayoutDashboard },
+    { label: 'Tickets', id: 'tickets', icon: Ticket },
+    { label: 'Crear Ticket', id: 'create-ticket', icon: PlusCircle },
+    ...(user.rol === "Administrador"
+      ? [{ label: 'Panel de Administración', id: 'admin', icon: Settings }]
+      : [])
+  ]
 
   return (
     <aside className="flex h-screen w-52 flex-col bg-sidebar text-sidebar-foreground">

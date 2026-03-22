@@ -4,15 +4,20 @@ import { CreateTicketForm } from './components/createTicket'
 import { AdminUsers } from './components/adminUsers'
 
 function App() {
+  const user = {
+    id: 1,
+    nombre: "Jose",
+    rol: "Administrador" // 🔥 CLAVE
+  }
   const [activeView, setActiveView] = useState('create-ticket')
 
   return (
     <div className="flex h-screen">
-      <TicketSidebar activeView={activeView} setActiveView={setActiveView} />
+      <TicketSidebar user={user} setActiveView={setActiveView} />
 
       {/* Render dinámico */}
       {activeView === 'create-ticket' && <CreateTicketForm />}
-      {activeView === 'admin' && <AdminUsers />}
+      {activeView === 'admin' && user.rol === "Administrador" &&<AdminUsers />}
     </div>
   )
 }

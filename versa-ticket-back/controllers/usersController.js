@@ -9,6 +9,8 @@ exports.getUserAdmin = async (req, res) => {
                 u.nombre,
                 u.apellido,
                 u.email,
+                u.rol_id,
+                u.area_id,
                 r.nombre AS rol,
                 a.nombre AS area,
                 u.activo,
@@ -48,5 +50,19 @@ exports.updateUser = async (req, res) => {
     } catch (error) {
         console.error("ERROR UPDATE:", error)
         res.status(500).json({ message: "Error actualizando usuario" })
+    }
+
+}
+exports.deleteUser = async (req, res) => {
+    const { id } = req.params
+
+    try {
+        await sql`DELETE FROM users WHERE id = ${id}`
+
+        res.json({ message: "Usuario eliminado" })
+
+    } catch (error) {
+        console.error(error)
+        res.status(500).json({ message: "Error eliminando usuario" })
     }
 }

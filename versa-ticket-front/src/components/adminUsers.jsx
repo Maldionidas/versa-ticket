@@ -11,15 +11,24 @@ export function AdminUsers() {
 
 
     const handleEdit = (user) => {
-        setSelectedUser(user)
-        setOriginalUser(user)
+        setSelectedUser({ ...user })
+        setOriginalUser({ ...user })
         setShowModal(true)
     }
     //para eliminar un usuario, se muestra una confirmación antes de eliminar
-    const handleDelete = (user) => {
-        if (window.confirm(`¿Estás seguro de eliminar a ${user.nombre} ${user.apellido}?`)) {
-            // Aquí puedes agregar la lógica para eliminar al usuario
-            console.log(`Usuario ${user.id} eliminado`)
+    const handleDelete = async (user) => {
+        if (!window.confirm(`¿Eliminar a ${user.nombre}?`)) return
+
+        try {
+            await fetch(`http://localhost:3000/api/users/${user.id}`, {
+                method: "DELETE",
+            })
+
+            // actualizar UI
+            setUsers((prev) => prev.filter(u => u.id !== user.id))
+
+        } catch (error) {
+            console.error("Error eliminando:", error)
         }
     }
     //para actualizar la lista de usuarios después de editar
@@ -42,18 +51,13 @@ export function AdminUsers() {
                         nombre: selectedUser.nombre,
                         apellido: selectedUser.apellido,
                         rol_id: selectedUser.rol_id,
-                        area_id: selectedUser.area_id,
+                        area_id: selectedUser.area_id
                     }),
                 }
             )
 
-            const data = await res.json()
+            await fetchUsers()
 
-            // actualizar la lista de usuarios con el usuario actualizado
-            setUsers((prev) =>
-                prev.map((u) =>
-                    u.id === data.id ? { ...u, ...data } : u)
-            )
 
             setSelectedUser(null)
 
@@ -61,6 +65,7 @@ export function AdminUsers() {
             console.error("Error actualizando:", error)
         }
     }
+
     // para mostrar los cambios antes de confirmar
     const getChanges = () => {
         if (!originalUser || !selectedUser) return []
@@ -105,6 +110,14 @@ export function AdminUsers() {
 
         return changes
     }
+    //para formato de fechas
+    const formatDate = (date) => {
+        return new Date(date).toLocaleString("es-MX", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric"
+        })
+    }
 
     // para cargar un usuario seleccionado
     useEffect(() => {
@@ -143,6 +156,7 @@ export function AdminUsers() {
             }
         }
 
+
         fetchCatalogs()
         fetchUsers()
     }, [])
@@ -179,7 +193,7 @@ export function AdminUsers() {
                                 <td className="p-2 border">
                                     {u.activo ? "Sí" : "No"}
                                 </td>
-                                <td className="p-2 border">{u.fecha_registro}</td>
+                                <td className="p-2 border">{formatDate(u.fecha_registro)}</td>
                                 <td className="p-2 border">
                                     {/* botones para editar o eliminar */}
                                     <button onClick={() => handleEdit(u)} className="px-2 py-1 bg-blue-500 text-white rounded mr-2">
@@ -223,7 +237,7 @@ export function AdminUsers() {
                         <select
                             value={selectedUser.rol_id || ""}
                             onChange={(e) =>
-                                setSelectedUser({ ...selectedUser, rol_id: e.target.value })
+                                setSelectedUser({ ...selectedUser, rol_id: Number(e.target.value) })
                             }
                             className="border p-2 w-full mb-2"
                         >
@@ -237,7 +251,7 @@ export function AdminUsers() {
                         <select
                             value={selectedUser.area_id || ""}
                             onChange={(e) =>
-                                setSelectedUser({ ...selectedUser, area_id: e.target.value })
+                                setSelectedUser({ ...selectedUser, area_id: Number(e.target.value) })
                             }
                             className="border p-2 w-full mb-2"
                         >

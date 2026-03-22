@@ -1,13 +1,7 @@
-export const isAdmin = (req, res, next) => {
-  const rol = req.headers["x-role"]
+const isAdmin = (req, res, next) => {
+    // ejemplo simple
+    console.log("Middleware admin ejecutado");
+    next();
+};
 
-  if (!rol) {
-    return res.status(401).json({ message: "No autorizado" })
-  }
-
-  if (rol !== "Admin") {
-    return res.status(403).json({ message: "Acceso denegado" })
-  }
-
-  next()
-}
+module.exports = { isAdmin };
