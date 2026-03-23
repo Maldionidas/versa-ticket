@@ -1,13 +1,18 @@
 import { useState } from 'react'
 import { TicketSidebar } from './components/sideBar'
-import { CreateTicketForm } from './components/createTicket'
-import { AdminUsers } from './components/adminUsers'
+import { CreateTicketForm } from './pages/createTicket'
+import { AdminPanel } from './pages/panelAdmin'
 
 function App() {
   const user = {
     id: 1,
     nombre: "Jose",
-    rol: "Administrador" // 🔥 CLAVE
+    rol: "Administrador",
+    permisos: {
+    users: { create: true, read: true, update: true, delete: true },
+    areas: { create: true, read: true, update: true, delete: true },
+    roles: { create: true, read: true, update: true, delete: true }
+  }
   }
   const [activeView, setActiveView] = useState('create-ticket')
 
@@ -17,7 +22,7 @@ function App() {
 
       {/* Render dinámico */}
       {activeView === 'create-ticket' && <CreateTicketForm />}
-      {activeView === 'admin' && user.rol === "Administrador" &&<AdminUsers />}
+      {activeView === 'admin' && user.rol === "Administrador" &&<AdminPanel user={user}/>}
     </div>
   )
 }

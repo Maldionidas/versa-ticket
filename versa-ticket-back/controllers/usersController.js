@@ -12,6 +12,7 @@ exports.getUserAdmin = async (req, res) => {
                 u.rol_id,
                 u.area_id,
                 r.nombre AS rol,
+                r.permisos,
                 a.nombre AS area,
                 u.activo,
                 u.fecha_registro
@@ -65,4 +66,19 @@ exports.deleteUser = async (req, res) => {
         console.error(error)
         res.status(500).json({ message: "Error eliminando usuario" })
     }
+}
+exports.createUser = async (req, res) => {
+  const { nombre, apellido, email, password, rol_id, area_id } = req.body
+
+  try {
+    const result = await sql`
+      INSERT INTO users (nombre, apellido, email, password_hash, rol_id, area_id)
+      VALUES (${nombre}, ${apellido}, ${email}, ${password}, ${rol_id}, ${area_id})
+      RETURNING *
+    `
+
+    res.json(result[0])
+  } catch (error) {
+    res.status(500).json({ message: "Error creando usuario" })
+  }
 }
