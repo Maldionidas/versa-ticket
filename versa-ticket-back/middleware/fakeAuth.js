@@ -4,7 +4,10 @@ module.exports = (req, res, next) => {
     nombre: "Admin",
     permisos: {
       admin: true,
-      users: { read: true, create: true, update: true, delete: true }
+      users: { read: true, create: true, update: true, delete: true },
+      areas: { read: true, create: true, update: true, delete: true },
+      categorias: { read: true, create: true, update: true, delete: true },
+      campos: { read: true, create: true, update: true, delete: true }
     }
   }
 

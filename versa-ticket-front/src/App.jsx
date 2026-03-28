@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { TicketSidebar } from './components/sideBar'
 import { CreateTicketForm } from './pages/createTicket'
 import { AdminPanel } from './pages/panelAdmin'
+import { Camera } from 'lucide-react'
 
 function App() {
   const user = {
@@ -11,7 +12,9 @@ function App() {
     permisos: {
     users: { create: true, read: true, update: true, delete: true },
     areas: { create: true, read: true, update: true, delete: true },
-    roles: { create: true, read: true, update: true, delete: true }
+    roles: { create: true, read: true, update: true, delete: true },
+    categorias: { create: true, read: true, update: true, delete: true },
+    campos: { create: true, read: true, update: true, delete: true }
   }
   }
   const [activeView, setActiveView] = useState('create-ticket')

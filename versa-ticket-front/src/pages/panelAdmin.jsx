@@ -2,6 +2,8 @@ import { useState, useMemo } from "react"
 import { AdminUsers } from "../components/adminUsers"
 import { AdminAreas } from "../components/adminAreas"
 import { AdminRoles } from "../components/adminRoles"
+import { AdminCategorias } from "../components/adminCategorias"
+import { AdminCampos } from "../components/adminCampos"
 
 // helpers simples
 const normalizePermissions = (permisos) => {
@@ -30,9 +32,10 @@ export function AdminPanel({ user }) {
     const canViewUsers = can(permisos, "users", "read")
     const canViewAreas = can(permisos, "areas", "read")
     const canViewRoles = can(permisos, "roles", "read")
-
+    const canViewCategorias = can(permisos, "categorias", "read")
+    const canViewCampos = can(permisos, "campos", "read")
     // 🚨 Si no tiene acceso a nada
-    if (!canViewUsers && !canViewAreas && !canViewRoles) {
+    if (!canViewUsers && !canViewAreas && !canViewRoles && !canViewCategorias && !canViewCampos) {
         return (
             <div className="p-6">
                 <div className="bg-red-100 text-red-700 p-4 rounded">
@@ -86,6 +89,31 @@ export function AdminPanel({ user }) {
                         Roles
                     </button>
                 )}
+                
+                {canViewCategorias && (
+                    <button
+                        onClick={() => setView("categorias")}
+                        className={`px-4 py-2 rounded-t-lg border ${
+                            view === "categorias"
+                                ? "bg-white border-b-white font-bold"
+                                : "bg-gray-100"
+                        }`}
+                    >
+                        Categorías
+                    </button>
+                )}
+                {canViewCampos && (
+                    <button
+                        onClick={() => setView("campos")}
+                        className={`px-4 py-2 rounded-t-lg border ${
+                            view === "campos"
+                                ? "bg-white border-b-white font-bold"
+                                : "bg-gray-100"
+                        }`}
+                    >
+                        Campos
+                    </button>
+                )}
 
             </div>
 
@@ -103,6 +131,13 @@ export function AdminPanel({ user }) {
                 {view === "roles" && canViewRoles && (
                     <AdminRoles user={user} permisos={permisos} />
                 )}
+                {view === "categorias" && canViewCategorias && (
+                    <AdminCategorias user={user} permisos={permisos} />
+                )}
+                {view === "campos" && canViewCampos && (
+                    <AdminCampos user={user} permisos={permisos} />
+                )}
+
 
             </div>
 
