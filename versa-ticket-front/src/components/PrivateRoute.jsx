@@ -1,15 +1,32 @@
-import React from 'react';
-import { Navigate } from 'react-router-dom';
+// src/components/PrivateRoute.jsx
+import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
-const PrivateRoute = ({ children }) => {
-    const { isAuthenticated, loading } = useAuth();
-
+const PrivateRoute = ({ adminOnly = false }) => {
+    const { user, loading } = useAuth();
+    const token = localStorage.getItem('token');
+    
+    console.log("PrivateRoute - user:", user);
+    console.log("PrivateRoute - token:", token ? "Sí" : "No");
+    console.log("PrivateRoute - loading:", loading);
+    console.log("PrivateRoute - adminOnly:", adminOnly);
+    
     if (loading) {
         return <div>Cargando...</div>;
     }
-
-    return isAuthenticated ? children : <Navigate to="/login" />;
+    
+    if (!token || !user) {
+        console.log("No autenticado, redirigiendo a login");
+        return <Navigate to="/login" replace />;
+    }
+    
+    if (adminOnly && user.rol_id !== 1) {
+        console.log("No es admin, redirigiendo a dashboard");
+        return <Navigate to="/dashboard" replace />;
+    }
+    
+    console.log("Autenticado correctamente");
+    return <Outlet />;
 };
 
-export default PrivateRoute;  // ← Asegúrate que sea export default
+export default PrivateRoute;

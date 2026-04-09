@@ -1,5 +1,4 @@
 const sql = require("../config/db");
-const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
 exports.login = async (req, res) => {
@@ -12,7 +11,6 @@ exports.login = async (req, res) => {
     }
 
     try {
-        // Buscar usuario en la tabla "users"
         const users = await sql`
             SELECT id, nombre, email, password_hash, rol_id, activo 
             FROM users 
@@ -20,30 +18,20 @@ exports.login = async (req, res) => {
         `;
 
         if (users.length === 0) {
-            return res.status(401).json({ 
-                message: "Credenciales inválidas" 
-            });
+            return res.status(401).json({ message: "Credenciales inválidas" });
         }
 
         const user = users[0];
 
-        // Verificar si usuario está activo
         if (!user.activo) {
-            return res.status(401).json({ 
-                message: "Usuario desactivado" 
-            });
+            return res.status(401).json({ message: "Usuario desactivado" });
         }
 
-        // Verificar contraseña (bcrypt)
-        const passwordValid = await bcrypt.compare(password, user.password_hash);
-
-        if (!passwordValid) {
-            return res.status(401).json({ 
-                message: "Credenciales inválidas" 
-            });
+        // Comparación directa SIN bcrypt
+        if (password !== user.password_hash) {
+            return res.status(401).json({ message: "Credenciales inválidas" });
         }
 
-        // Generar token JWT
         const token = jwt.sign(
             { 
                 id: user.id, 
@@ -55,7 +43,6 @@ exports.login = async (req, res) => {
             { expiresIn: "24h" }
         );
 
-        // Respuesta exitosa
         res.json({
             message: "Login exitoso",
             token,
@@ -69,8 +56,6 @@ exports.login = async (req, res) => {
 
     } catch (error) {
         console.error("Error en login:", error);
-        res.status(500).json({ 
-            message: "Error en el servidor" 
-        });
+        res.status(500).json({ message: "Error en el servidor" });
     }
 };
