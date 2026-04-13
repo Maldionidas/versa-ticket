@@ -1,34 +1,9 @@
-// src/api/auth.js
-import axios from 'axios';
+// src/api/auth.js - ✅ VERSIÓN CORRECTA
+import api from './axios';  // ← SOLO esta importación
 
-const API_URL = 'http://localhost:3000/api';
-
-const api = axios.create({
-  baseURL: API_URL,
-  headers: { 'Content-Type': 'application/json' },
-});
-
-// Interceptor para agregar token - usar sessionStorage
-api.interceptors.request.use((config) => {
-  const token = sessionStorage.getItem('token'); // ✅ Cambiado
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
-// Interceptor para manejar 401
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      sessionStorage.removeItem('token'); // ✅ Cambiado
-      sessionStorage.removeItem('usuario');
-      window.location.href = '/login';
-    }
-    return Promise.reject(error);
-  }
-);
+// NO declares otra constante api aquí
+// NO crees otra instancia de axios
+// NO pongas interceptores aquí (ya están en axios.js)
 
 export const login = async (email, password) => {
   const response = await api.post('/auth/login', { email, password });
@@ -49,10 +24,5 @@ export const isAuthenticated = () => {
   return !!sessionStorage.getItem('token');
 };
 
-export default {
-  login,
-  logout,
-  getCurrentUser,
-  isAuthenticated,
-  api
-};
+export { api };
+export default api;

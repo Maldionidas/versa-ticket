@@ -1,6 +1,7 @@
 // src/pages/Inbox.jsx
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import api from '../api/axios'; // ✅ Importar la instancia configurada
 
 const Inbox = () => {
   const { user } = useAuth();
@@ -11,118 +12,94 @@ const Inbox = () => {
   const [selectedTicket, setSelectedTicket] = useState(null);
 
   const isAdmin = user?.rol_id === 2;
+  const isAgente = user?.rol_id === 3;
 
   useEffect(() => {
     cargarDatos();
   }, []);
 
   const cargarDatos = async () => {
+    setLoading(true);
     await Promise.all([
       cargarTickets(),
       cargarAgentes()
     ]);
+    setLoading(false);
   };
 
+  // ✅ CORREGIDO: Usar api en lugar de fetch
   const cargarTickets = async () => {
     try {
-      const token = localStorage.getItem('token');
-      
-      if (!token) {
-        setLoading(false);
-        return;
-      }
-
-      const response = await fetch('http://localhost:3000/api/tickets', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Tickets:', data);
-        setTickets(data);
-      }
+      const response = await api.get('/tickets');
+      console.log('Tickets:', response.data);
+      setTickets(response.data);
     } catch (error) {
-      console.error('Error:', error);
-    } finally {
-      setLoading(false);
+      console.error('Error cargando tickets:', error);
+      if (error.response?.status === 401) {
+        // El interceptor ya maneja la redirección, solo logueamos
+        console.warn('No autorizado - redirigiendo a login');
+      }
     }
   };
 
+  // ✅ CORREGIDO: Usar api en lugar de fetch
   const cargarAgentes = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:3000/api/users?rol=3', {
-        headers: { 'Authorization': `Bearer ${token}` }
+      const response = await api.get('/users', {
+        params: { rol: 3 }
       });
-
-      if (response.ok) {
-        const data = await response.json();
-        setAgentes(Array.isArray(data) ? data : []);
-      }
+      setAgentes(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       console.error('Error cargando agentes:', error);
+      setAgentes([]);
     }
   };
 
+  // ✅ CORREGIDO: Usar api en lugar de fetch
   const asignarAgente = async (ticketId, agenteId) => {
     setUpdating(true);
     try {
-      const token = localStorage.getItem('token');
-      
-      const response = await fetch(`http://localhost:3000/api/tickets/${ticketId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ responsable_id: agenteId || null })
+      await api.put(`/tickets/${ticketId}`, { 
+        responsable_id: agenteId || null 
       });
-
-      if (response.ok) {
-        alert('✅ Agente asignado correctamente');
-        await cargarTickets();
-        if (selectedTicket?.id === ticketId) {
-          const ticketActualizado = tickets.find(t => t.id === ticketId);
-          setSelectedTicket(ticketActualizado);
-        }
-      } else {
-        alert('❌ Error al asignar agente');
+      
+      alert('✅ Agente asignado correctamente');
+      await cargarTickets();
+      
+      // Actualizar ticket seleccionado
+      if (selectedTicket?.id === ticketId) {
+        const ticketActualizado = tickets.find(t => t.id === ticketId);
+        setSelectedTicket(ticketActualizado);
       }
     } catch (error) {
       console.error('Error:', error);
-      alert('Error de conexión');
+      const mensaje = error.response?.data?.message || 'Error al asignar agente';
+      alert(`❌ ${mensaje}`);
     } finally {
       setUpdating(false);
     }
   };
 
+  // ✅ CORREGIDO: Usar api en lugar de fetch
   const actualizarEstado = async (ticketId, nuevoEstadoId) => {
     setUpdating(true);
     try {
-      const token = localStorage.getItem('token');
-      
-      const response = await fetch(`http://localhost:3000/api/tickets/${ticketId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ estado_id: nuevoEstadoId })
+      await api.put(`/tickets/${ticketId}`, { 
+        estado_id: nuevoEstadoId 
       });
-
-      if (response.ok) {
-        alert('✅ Estado actualizado correctamente');
-        await cargarTickets();
-        if (selectedTicket?.id === ticketId) {
-          const ticketActualizado = tickets.find(t => t.id === ticketId);
-          setSelectedTicket(ticketActualizado);
-        }
-      } else {
-        alert('❌ Error al actualizar estado');
+      
+      alert('✅ Estado actualizado correctamente');
+      await cargarTickets();
+      
+      // Actualizar ticket seleccionado
+      if (selectedTicket?.id === ticketId) {
+        const ticketActualizado = tickets.find(t => t.id === ticketId);
+        setSelectedTicket(ticketActualizado);
       }
     } catch (error) {
       console.error('Error:', error);
-      alert('Error de conexión');
+      const mensaje = error.response?.data?.message || 'Error al actualizar estado';
+      alert(`❌ ${mensaje}`);
     } finally {
       setUpdating(false);
     }
@@ -141,23 +118,40 @@ const Inbox = () => {
   };
 
   const getPriorityColor = (prioridad) => {
-    switch (prioridad?.toLowerCase()) {
-      case 'crítica': return 'text-red-600 bg-red-100';
-      case 'alta': return 'text-orange-600 bg-orange-100';
-      case 'media': return 'text-yellow-600 bg-yellow-100';
-      case 'baja': return 'text-green-600 bg-green-100';
-      default: return 'text-gray-600 bg-gray-100';
+    const prioridadLower = prioridad?.toLowerCase() || '';
+    switch (prioridadLower) {
+      case 'crítica':
+      case 'critica':
+        return 'text-red-600 bg-red-100';
+      case 'alta':
+        return 'text-orange-600 bg-orange-100';
+      case 'media':
+        return 'text-yellow-600 bg-yellow-100';
+      case 'baja':
+        return 'text-green-600 bg-green-100';
+      default:
+        return 'text-gray-600 bg-gray-100';
     }
   };
 
   const getStatusColor = (estado) => {
-    switch (estado?.toLowerCase()) {
-      case 'abierto': return 'text-blue-600 bg-blue-100';
-      case 'en proceso': return 'text-purple-600 bg-purple-100';
-      case 'en espera': return 'text-orange-600 bg-orange-100';
-      case 'resuelto': return 'text-green-600 bg-green-100';
-      case 'cerrado': return 'text-gray-600 bg-gray-100';
-      default: return 'text-gray-600 bg-gray-100';
+    const estadoLower = estado?.toLowerCase() || '';
+    switch (estadoLower) {
+      case 'abierto':
+      case 'pendiente':
+        return 'text-blue-600 bg-blue-100';
+      case 'en proceso':
+      case 'en_progreso':
+        return 'text-purple-600 bg-purple-100';
+      case 'en espera':
+        return 'text-orange-600 bg-orange-100';
+      case 'resuelto':
+      case 'completado':
+        return 'text-green-600 bg-green-100';
+      case 'cerrado':
+        return 'text-gray-600 bg-gray-100';
+      default:
+        return 'text-gray-600 bg-gray-100';
     }
   };
 
@@ -169,10 +163,19 @@ const Inbox = () => {
     { id: 5, nombre: 'Cerrado' }
   ];
 
+  // Filtrar tickets según el rol
+  const getFilteredTickets = () => {
+    if (isAdmin) return tickets;
+    if (isAgente) return tickets.filter(t => t.responsable_id === user?.id);
+    return tickets.filter(t => t.usuario_id === user?.id);
+  };
+
+  const filteredTickets = getFilteredTickets();
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-gray-500">Cargando tickets...</div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500"></div>
       </div>
     );
   }
@@ -189,12 +192,12 @@ const Inbox = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Lista de tickets */}
         <div className="lg:col-span-1 space-y-3">
-          {tickets.length === 0 ? (
+          {filteredTickets.length === 0 ? (
             <div className="bg-white rounded-lg shadow p-8 text-center text-gray-500">
               No hay tickets
             </div>
           ) : (
-            tickets.map((ticket) => (
+            filteredTickets.map((ticket) => (
               <div
                 key={ticket.id}
                 onClick={() => setSelectedTicket(ticket)}
@@ -251,7 +254,7 @@ const Inbox = () => {
 
               <div className="p-6 border-b">
                 <h3 className="font-semibold text-gray-800 mb-3">📄 Descripción</h3>
-                <p className="text-gray-600">{selectedTicket.descripcion}</p>
+                <p className="text-gray-600 whitespace-pre-wrap">{selectedTicket.descripcion}</p>
               </div>
 
               <div className="p-6 border-b">
@@ -296,7 +299,7 @@ const Inbox = () => {
               )}
 
               {/* Actualizar Estado - Visible para Admin y Agente */}
-              {(isAdmin || user?.rol_id === 3) && (
+              {(isAdmin || isAgente) && (
                 <div className="p-6 border-b">
                   <h3 className="font-semibold text-gray-800 mb-3">🔄 Actualizar Estado</h3>
                   <div className="flex flex-wrap gap-2">
@@ -331,6 +334,7 @@ const Inbox = () => {
             </div>
           ) : (
             <div className="bg-white rounded-lg shadow p-8 text-center text-gray-500">
+              <div className="text-6xl mb-4">📧</div>
               <p>Selecciona un ticket para ver los detalles</p>
             </div>
           )}

@@ -13,41 +13,64 @@ import AssignedTickets from './pages/AssignedTickets';
 function AppContent() {
   const { user, loading } = useAuth();
   const location = useLocation();
-  
-  // Rutas donde NO se muestra el sidebar
+
   const hideSidebarRoutes = ['/login'];
   const shouldHideSidebar = hideSidebarRoutes.includes(location.pathname);
 
+  // Mientras está cargando la autenticación → mostrar solo loader
   if (loading) {
-    return <div className="flex items-center justify-center h-screen">Cargando...</div>;
+    return (
+      <div className="flex items-center justify-center h-screen bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin h-8 w-8 mx-auto border-4 border-blue-600 border-t-transparent rounded-full"></div>
+          <p className="mt-4 text-gray-600">Cargando autenticación...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="flex">
+    <div className="flex h-screen">
+      {/* Sidebar solo si está logueado y no es login */}
       {user && !shouldHideSidebar && <TicketSidebar />}
-      <div className={`flex-1 ${user && !shouldHideSidebar ? 'ml-64' : ''}`}>
+
+      <div className={`flex-1 overflow-auto ${user && !shouldHideSidebar ? 'ml-64' : ''}`}>
         <Routes>
           <Route path="/login" element={<Login />} />
-          
-          {/* Rutas protegidas - SOLO para usuarios normales */}
-          <Route path="/inbox" element={
-            user ? <Inbox /> : <Navigate to="/login" />
-          } />
-          <Route path="/dashboard" element={
-            user ? <Dashboard /> : <Navigate to="/login" />
-          } />
-          <Route path="/create-ticket" element={
-            user ? <CreateTicket /> : <Navigate to="/login" />
-          } />
-          
-          {/* Ruta de Admin - SOLO para rol_id === 2 */}
-          <Route path="/admin" element={
-            user && user.rol_id === 2 ? <AdminPanel /> : <Navigate to="/inbox" />
-          } />
-          <Route path="/assigned-tickets" element={
-  user && user.rol_id === 3 ? <AssignedTickets /> : <Navigate to="/dashboard" />
-} />
-          <Route path="/" element={<Navigate to="/inbox" />} />
+
+          {/* Rutas protegidas */}
+          <Route 
+            path="/inbox" 
+            element={user ? <Inbox /> : <Navigate to="/login" replace />} 
+          />
+          <Route 
+            path="/dashboard" 
+            element={user ? <Dashboard /> : <Navigate to="/login" replace />} 
+          />
+          <Route 
+            path="/create-ticket" 
+            element={user ? <CreateTicket /> : <Navigate to="/login" replace />} 
+          />
+
+          {/* Rutas con permisos especiales */}
+          <Route 
+            path="/admin" 
+            element={
+              user && user.rol_id === 2 ? 
+                <AdminPanel /> : 
+                <Navigate to="/inbox" replace />
+            } 
+          />
+          <Route 
+            path="/assigned-tickets" 
+            element={
+              user && user.rol_id === 3 ? 
+                <AssignedTickets /> : 
+                <Navigate to="/dashboard" replace />
+            } 
+          />
+
+          <Route path="/" element={<Navigate to="/inbox" replace />} />
         </Routes>
       </div>
     </div>

@@ -1,7 +1,7 @@
 // src/context/AuthContext.jsx
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import { login as apiLogin, logout as apiLogout, getCurrentUser } from '../api/auth';
-import { sessionManager } from '../api/sessionManager';
+import { login as apiLogin, logout as apiLogout } from '../api/auth';
+import sessionManager from '../api/sessionManager';
 
 const AuthContext = createContext();
 
@@ -17,56 +17,86 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Inicializar al cargar la aplicación
   useEffect(() => {
-    // ✅ CAMBIAR: usar sessionStorage en lugar de localStorage
-    const token = sessionStorage.getItem('token');
-    const savedUser = sessionStorage.getItem('usuario');
-    const currentUser = savedUser ? JSON.parse(savedUser) : null;
-    
-    console.log('AuthProvider - Token en sessionStorage:', !!token);
-    console.log('AuthProvider - Usuario en sessionStorage:', savedUser);
-    
-    if (token && currentUser) {
-      setUser(currentUser);
-      // Registrar sesión al cargar
-      sessionManager.registerSession(currentUser.id, token);
-    }
-    
-    setLoading(false);
-    
-    // Limpiar al cerrar la pestaña
-    window.addEventListener('beforeunload', () => {
-      if (user) {
-        sessionManager.clearSession();
+    const initializeAuth = () => {
+      const token = sessionStorage.getItem('token');
+      const savedUser = sessionStorage.getItem('usuario');
+      
+      console.log('🔐 AuthProvider init - Token:', !!token);
+      console.log('👤 AuthProvider init - Usuario:', !!savedUser);
+
+      if (token && savedUser) {
+        try {
+          const parsedUser = JSON.parse(savedUser);
+          setUser(parsedUser);
+          sessionManager.registerSession(parsedUser.id, token);
+        } catch (e) {
+          console.error('Error parsing user from sessionStorage', e);
+          sessionStorage.clear();
+        }
       }
-    });
-    
-    return () => {
-      window.removeEventListener('beforeunload', () => {});
+      setLoading(false);
     };
-  }, []);
+
+    initializeAuth();
+
+    // Limpieza al cerrar pestaña
+    const handleBeforeUnload = () => {
+      if (user) sessionManager.clearSession();
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, []); // ← Solo se ejecuta una vez al montar
 
   const login = async (email, password) => {
-    const response = await apiLogin(email, password);
-    if (response.data.token) {
-      // ✅ Guardar en sessionStorage
-      sessionStorage.setItem('token', response.data.token);
-      sessionStorage.setItem('usuario', JSON.stringify(response.data.usuario));
-      setUser(response.data.usuario);
+    try {
+      const response = await apiLogin(email, password);
+
+      if (response.data?.token && response.data?.usuario) {
+        const { token, usuario } = response.data;
+
+        // Guardar en sessionStorage
+        sessionStorage.setItem('token', token);
+        sessionStorage.setItem('usuario', JSON.stringify(usuario));
+
+        setUser(usuario);
+
+        // Registrar sesión (importante para BroadcastChannel)
+        sessionManager.registerSession(usuario.id, token);
+
+        console.log('✅ Login exitoso y sesión registrada');
+        return response.data;
+      } else {
+        throw new Error('Respuesta inválida del servidor');
+      }
+    } catch (error) {
+      console.error('❌ Error en login:', error);
+      throw error;
     }
-    return response;
   };
 
   const logout = () => {
-    // ✅ Limpiar sessionStorage
+    sessionManager.clearSession();
     sessionStorage.removeItem('token');
     sessionStorage.removeItem('usuario');
     apiLogout();
     setUser(null);
+    window.location.href = '/login'; // Forzar redirección
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      login, 
+      logout, 
+      loading,
+      isAuthenticated: !!user 
+    }}>
       {children}
     </AuthContext.Provider>
   );

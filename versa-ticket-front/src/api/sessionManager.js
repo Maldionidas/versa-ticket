@@ -19,12 +19,9 @@ class SessionManager {
     if (this.channel) {
       this.channel.onmessage = (event) => {
         const { type, userId, sessionId } = event.data;
-        
-        console.log('📡 Mensaje recibido:', { type, userId, sessionId });
-        
-        // Solo bloquear si es el MISMO usuario
+
         if (type === 'LOGIN' && userId === this.currentUserId && sessionId !== this.sessionId) {
-          console.log('🚫 Mismo usuario detectado en otra pestaña');
+          console.log('🚫 Sesión duplicada detectada');
           this.handleDuplicateSession();
         }
       };
@@ -33,46 +30,49 @@ class SessionManager {
 
   registerSession(userId, token) {
     this.currentUserId = userId;
-    this.sessionId = `${userId}-${Date.now()}-${Math.random().toString(36)}`;
-    
+    this.sessionId = `${userId}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
     const sessionData = {
       userId,
       sessionId: this.sessionId,
       timestamp: Date.now()
     };
-    
-    // Guardar en sessionStorage (no localStorage)
+
+    // Guardar todo junto
     sessionStorage.setItem('activeSession', JSON.stringify(sessionData));
-    
+    sessionStorage.setItem('token', token);           // ← Muy importante
+    // sessionStorage.setItem('usuario', JSON.stringify(usuario)); // si lo tienes
+
     if (this.channel) {
       this.channel.postMessage({
         type: 'LOGIN',
         userId,
         sessionId: this.sessionId
       });
-      console.log('📡 Sesión registrada para usuario:', userId);
     }
+
+    console.log('📡 Sesión registrada correctamente:', userId);
   }
 
   handleDuplicateSession() {
-    const message = '⚠️ Ya tienes una sesión activa de este usuario en otra pestaña.\n\nSolo puedes tener una sesión activa por usuario.\n\nEsta pestaña se cerrará.';
-    alert(message);
+    console.warn('Sesión duplicada detectada');
+    alert('Ya tienes una sesión activa en otra pestaña. Esta se cerrará.');
     
-    sessionStorage.removeItem('token');
-    sessionStorage.removeItem('usuario');
-    sessionStorage.removeItem('activeSession');
+    sessionStorage.clear();   // Limpia todo
     window.location.href = '/login';
   }
 
   clearSession() {
     if (this.channel) {
-      this.channel.postMessage({
-        type: 'LOGOUT',
-        userId: this.currentUserId
-      });
+      this.channel.postMessage({ type: 'LOGOUT', userId: this.currentUserId });
     }
-    sessionStorage.removeItem('activeSession');
-    console.log('📡 Sesión cerrada para usuario:', this.currentUserId);
+    sessionStorage.clear();
+    console.log('📡 Sesión cerrada');
+  }
+
+  // Nuevo método útil
+  isValidSession() {
+    return !!sessionStorage.getItem('token') && !!sessionStorage.getItem('activeSession');
   }
 }
 
