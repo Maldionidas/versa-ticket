@@ -14,22 +14,28 @@ exports.getTickets = async (req, res) => {
 };
 
 exports.createTicket = async (req, res) => {
-    // 1. Extraemos los textos del req.body (incluyendo el JSON stringificado de valores_dinamicos)
+    // 1. Extraemos los textos del req.body
     const { titulo, descripcion, prioridad_id, categoria_id, area_id, responsable_id, valores_dinamicos } = req.body;
     
-    // 2. Extraemos los archivos de req.files (Multer y Cloudinary los inyectan aquí)
+    // 2. Extraemos los archivos de req.files
     const archivos = req.files; 
+
+    // 3. LA MEJORA DEL MERGE: Extraemos el ID real del usuario que hizo login
+    // Tu compañero protegió la ruta, así que 'req.user' ya existe gracias al middleware JWT
+    const usuario_id = req.user?.id; 
+
+    if (!usuario_id) {
+        return res.status(401).json({ message: "No autorizado. Token inválido o expirado." });
+    }
 
     if (!titulo || !descripcion || !prioridad_id || !area_id) {
         return res.status(400).json({ message: "Campos obligatorios faltantes" });
     }
 
     try {
-        const estado_id = 1;   // estado inicial (Abierto)
-        // NOTA: Cuando tu compañero acabe el login, cambiaremos esto por: const usuario_id = req.user.id;
-        const usuario_id = 1;  
+        const estado_id = 1; // estado inicial (Abierto)
 
-        // 🚀 INICIAMOS LA TRANSACCIÓN
+        // INICIAMOS LA TRANSACCIÓN
         const resultadoTransaccion = await sql.begin(async (sqlTransaccion) => {
 
             // PASO 1: Insertar el Ticket Principal
@@ -42,16 +48,13 @@ exports.createTicket = async (req, res) => {
             `;
             const nuevoTicket = ticketInsert[0];
 
-            // PASO 2: Insertar Campos Dinámicos (Si el frontend los envió)
+            // PASO 2: Insertar Campos Dinámicos
             if (valores_dinamicos) {
-                // Como lo mandamos con JSON.stringify desde React, aquí lo volvemos a convertir a Objeto
                 const valoresParseados = JSON.parse(valores_dinamicos);
 
-                // Iteramos sobre las llaves del objeto (que son los IDs de los campos)
                 for (const campo_id of Object.keys(valoresParseados)) {
                     const valor = valoresParseados[campo_id];
 
-                    // Solo guardamos si el usuario realmente escribió algo o marcó el checkbox
                     if (valor !== "" && valor !== null && valor !== false) {
                         await sqlTransaccion`
                             INSERT INTO ticket_campos_valores
@@ -63,7 +66,7 @@ exports.createTicket = async (req, res) => {
                 }
             }
 
-            // PASO 3: Insertar Evidencias / Archivos (Si Multer atrapó archivos)
+            // PASO 3: Insertar Evidencias / Archivos (Cloudinary)
             const evidenciasGuardadas = [];
             if (archivos && archivos.length > 0) {
                 for (const file of archivos) {
@@ -78,16 +81,14 @@ exports.createTicket = async (req, res) => {
                 }
             }
 
-            // Retornamos todo el paquete armado
             return {
                 ...nuevoTicket,
                 evidencias: evidenciasGuardadas
             };
         });
 
-        // Si todo salió bien, cerramos con éxito
         res.status(201).json({
-            message: "Ticket creado exitosamente con toda su información",
+            message: "Ticket creado exitosamente",
             ticket: resultadoTransaccion
         });
 

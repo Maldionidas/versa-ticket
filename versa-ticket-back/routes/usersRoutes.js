@@ -10,4 +10,5 @@ router.put('/:id', hasPermission("users", "update"), getUsers.updateUser);
 router.delete('/:id', hasPermission("users", "delete"), getUsers.deleteUser);
 router.post("/crear", hasPermission("users", "create"), getUsers.createUser)
 
+
 module.exports = router;

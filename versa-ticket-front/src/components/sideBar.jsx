@@ -1,16 +1,18 @@
-import { useState } from 'react'
-import { LayoutDashboard, Ticket, PlusCircle, Settings, CircleDot } from 'lucide-react'
+import { LayoutDashboard, Ticket, PlusCircle, Settings} from 'lucide-react'
 import { cn } from '../lib/utils'
+import { useNavigate, useLocation } from 'react-router-dom'
 import logo from '../assets/Logo-Versa.jpeg'
 import mascot from '../assets/mascota.jpeg'
 
-export function TicketSidebar({ user, activeView, setActiveView }) {
+export function TicketSidebar({ user}) {
+  const navigate = useNavigate()
+  const location = useLocation()
   const navItems = [
-    { label: 'Panel', id: 'dashboard', icon: LayoutDashboard },
-    { label: 'Tickets', id: 'tickets', icon: Ticket },
-    { label: 'Crear Ticket', id: 'create-ticket', icon: PlusCircle },
-    ...(user.rol === "Administrador"
-      ? [{ label: 'Panel de Administración', id: 'admin', icon: Settings }]
+    { label: 'Panel', path: '/dashboard', icon: LayoutDashboard },
+    { label: 'Tickets', path: '/tickets', icon: Ticket },
+    { label: 'Crear Ticket', path: '/create-ticket', icon: PlusCircle },
+    ...(user?.rol === "Administrador" || user?.rol_id === 2
+      ? [{ label: 'Panel de Administración', path: '/admin', icon: Settings }]
       : [])
   ]
 
@@ -32,12 +34,12 @@ export function TicketSidebar({ user, activeView, setActiveView }) {
       {/* Navigation */}
       <nav className="mt-4 flex-1 space-y-1 px-2">
         {navItems.map((item) => {
-          const isActive = activeView === item.id
+          const isActive = location.pathname === item.path
           const Icon = item.icon
           return (
             <button
-              key={item.id}
-              onClick={() => setActiveView(item.id)}
+              key={item.path}
+              onClick={() => navigate(item.path)}
               className={cn(
                 'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors text-left',
                 isActive
@@ -52,16 +54,24 @@ export function TicketSidebar({ user, activeView, setActiveView }) {
         })}
       </nav>
 
-      {/* User info */}
+      {/* User info dinámica */}
       <div className="border-t border-sidebar-border p-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-sidebar-accent text-sm font-medium">
-            JS
+          
+          {/* Sacamos las iniciales (Ej. Si se llama Jose, pintamos JO) */}
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-sidebar-accent text-sm font-medium uppercase text-sidebar-foreground">
+            {user?.nombre ? user.nombre.substring(0, 2) : 'US'}
           </div>
-          <div className="flex flex-col">
-            <span className="text-sm font-medium">Jose Maldonado</span>
-            <span className="text-xs text-sidebar-foreground/70">jose.maldonado@versa.com</span>
+          
+          <div className="flex flex-col overflow-hidden">
+            <span className="text-sm font-medium truncate">
+               {user?.nombre} {user?.apellido} {/* Nombre real */}
+            </span>
+            <span className="text-xs text-sidebar-foreground/70 truncate">
+               {user?.email || 'usuario@versa.com'} {/* Correo real */}
+            </span>
           </div>
+
         </div>
       </div>
     </aside>
