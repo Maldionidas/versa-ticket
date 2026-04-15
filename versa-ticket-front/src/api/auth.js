@@ -1,17 +1,18 @@
-import axios from 'axios';
-
-const API_URL = 'http://localhost:3000/api/auth';
+// src/api/auth.js
+import api from './axios';
 
 export const authService = {
     // 1. Iniciar sesión
     login: async (email, password) => {
-        // Hacemos la petición POST al backend
-        const response = await axios.post(`${API_URL}/login`, { email, password });
+        // Usamos la instancia 'api' que ya tiene la URL base /api
+        const response = await api.post('/auth/login', { email, password });
         
-        // Si el backend nos responde con el Token, lo guardamos en la caja fuerte del navegador
+        // El interceptor en axios.js probablemente ya maneja el guardado del token,
+        // pero aseguramos el guardado de los datos del usuario aquí.
         if (response.data.token) {
             localStorage.setItem('token', response.data.token);
-            // Guardamos los datos del usuario (como su rol) para que tu Sidebar los pueda leer
+            
+            // Normalizamos el nombre del objeto usuario (user o usuario)
             const userData = response.data.user || response.data.usuario;
             
             if (userData) {
@@ -26,6 +27,8 @@ export const authService = {
     logout: () => {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
+        // También limpiamos sessionStorage por si acaso tu compa guardó algo ahí
+        sessionStorage.clear();
     },
 
     // 3. Obtener el usuario actual
@@ -41,7 +44,9 @@ export const authService = {
 
     // 4. Verificar si está logueado
     isAuthenticated: () => {
-        // Si hay token, devolvemos true
         return !!localStorage.getItem('token');
     }
 };
+
+// Exportamos por defecto para mantener compatibilidad con lo que use tu compa
+export default authService;

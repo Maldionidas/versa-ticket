@@ -1,32 +1,39 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
 
-// Importamos los middlewares de seguridad que blindamos en fases anteriores
-const { hasPermission } = require('../middleware/authMiddleware');
+// Importamos del nuevo middleware unificado
+const { verifyToken, hasPermission } = require("../middlewares/auth");
+const categoriasController = require("../controllers/categoriasController");
 
-// Importamos el controlador CRUD de categorías
-const categoriasController = require('../controllers/categoriasController');
+// 🛡️ CAPA 1: Protegemos todas las rutas exigiendo que el usuario tenga sesión (Token válido)
+router.use(verifyToken);
 
-// ==========================================
-// MIDDLEWARE GLOBAL PARA ESTE ROUTER
-// ==========================================
-// Exigimos que haya un token válido para CUALQUIER petición a /api/categorias
-//router.use(authenticateToken);
+// ======================================================================
+// RUTAS ABIERTAS (Solo requieren estar logueado, sin permisos especiales)
+// ======================================================================
 
-// ==========================================
-// ENDPOINTS Y PERMISOS (RBAC)
-// ==========================================
+// 🚀 IMPORTANTE: Dile a tu compa que use el endpoint "/api/categorias/activas" 
+// en su app de Android/iOS para llenar los selectores al crear un ticket.
+router.get("/activas", categoriasController.getCategorias);
 
-// GET /api/categorias - Requiere permiso de lectura
-router.get('/', hasPermission('categorias', 'read'), categoriasController.getAllCategoriasAdmin);
+// ======================================================================
+// RUTAS PARA EL PANEL DE ADMINISTRACIÓN (Requieren permisos de 'categorias')
+// ======================================================================
 
-// POST /api/categorias - Requiere permiso de creación
-router.post('/', hasPermission('categorias', 'create'), categoriasController.createCategoria);
+// Tu ruta original del admin panel
+router.get("/", hasPermission("categorias", "read"), categoriasController.getAllCategoriasAdmin);
 
-// PUT /api/categorias/:id - Requiere permiso de actualización
-router.put('/:id', hasPermission('categorias', 'update'), categoriasController.updateCategoria);
+// Rutas de escritura protegidas con RBAC
+router.post("/", hasPermission("categorias", "create"), categoriasController.createCategoria);
 
-// DELETE /api/categorias/:id - Requiere permiso de eliminación
-router.delete('/:id', hasPermission('categorias', 'delete'), categoriasController.deleteCategoria);
+// ======================================================================
+// RUTAS CON PARÁMETROS DINÁMICOS (Siempre van al final para evitar choques)
+// ======================================================================
+
+// La ruta de tu compa para buscar una sola categoría
+router.get("/:id", categoriasController.getCategoriaById);
+
+router.put("/:id", hasPermission("categorias", "update"), categoriasController.updateCategoria);
+router.delete("/:id", hasPermission("categorias", "delete"), categoriasController.deleteCategoria);
 
 module.exports = router;

@@ -1,231 +1,200 @@
-import { useEffect, useState } from "react"
-import { Plus, Pencil, Trash2 } from "lucide-react"
+//components/adminAreas.jsx
+import React, { useState, useEffect } from 'react';
+import api from '../api/axios'; // Usamos la instancia con el token
 
-const modules = ["users", "areas", "tickets"]
-const actions = ["create", "read", "update", "delete"]
+const AdminAreas = () => {
+  const [areas, setAreas] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [editingArea, setEditingArea] = useState(null);
+  
+  // Agregué 'activo' al formData porque es vital para el control administrativo
+  const [formData, setFormData] = useState({ 
+    nombre: '', 
+    descripcion: '', 
+    activo: true 
+  });
 
-export function AdminAreas() {
-    const [areas, setAreas] = useState([])
-    const [search, setSearch] = useState("")
-    const [selectedArea, setSelectedArea] = useState(null)
-    const [isEdit, setIsEdit] = useState(false)
-    const [showModal, setShowModal] = useState(false)
-    const [loading, setLoading] = useState(false)
+  useEffect(() => {
+    cargarAreas();
+  }, []);
 
-    //  Cargar áreas
-    const fetchAreas = async () => {
-        try {
-            const res = await fetch("http://localhost:3000/api/areas")
-            const text = await res.text()
-            let data = []
-
-            try {
-                data = text ? JSON.parse(text) : []
-            } catch {
-                console.warn("Respuesta no válida, usando array vacío")
-            }
-
-            setAreas(data)
-        } catch (error) {
-            console.error("Error cargando áreas:", error)
-        }
+  const cargarAreas = async () => {
+    try {
+      const response = await api.get('/areas');
+      setAreas(response.data);
+    } catch (error) {
+      console.error('Error cargando áreas:', error);
+    } finally {
+      setLoading(false);
     }
+  };
 
-    useEffect(() => {
-        fetchAreas()
-    }, [])
-
-    //  Filtrado
-    const filteredAreas = areas.filter(a =>
-        a.nombre.toLowerCase().includes(search.toLowerCase())
-    )
-
-    //  Abrir modal crear
-    const handleCreate = () => {
-        setSelectedArea({
-            nombre: "",
-            descripcion: "",
-            activo: true
-        })
-        setIsEdit(false)
-        setShowModal(true)
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      if (editingArea) {
+        await api.put(`/areas/${editingArea.id}`, formData);
+      } else {
+        await api.post('/areas', formData);
+      }
+      await cargarAreas();
+      setShowModal(false);
+      setFormData({ nombre: '', descripcion: '', activo: true });
+      setEditingArea(null);
+    } catch (error) {
+      console.error('Error guardando área:', error);
+      alert(error.response?.data?.message || 'Error al guardar el área');
     }
+  };
 
-    //  Editar
-    const handleEdit = (area) => {
-        setSelectedArea({ ...area })
-        setIsEdit(true)
-        setShowModal(true)
+  const handleDelete = async (id) => {
+    if (window.confirm('¿Eliminar esta área?')) {
+      try {
+        await api.delete(`/areas/${id}`);
+        await cargarAreas();
+      } catch (error) {
+        console.error('Error eliminando área:', error);
+        alert('No se puede eliminar un área con tickets asignados. Prueba desactivándola.');
+      }
     }
+  };
 
-    //  Guardar 
-    const handleSave = async () => {
-        try {
-            setLoading(true) // 🔥 empieza loading
+  if (loading) return <div className="p-8 text-center text-gray-500 font-medium">Cargando módulos de áreas...</div>;
 
-            const url = isEdit
-                ? `http://localhost:3000/api/areas/${selectedArea.id}`
-                : `http://localhost:3000/api/areas`
+  return (
+    <div className="p-6">
+      {/* HEADER DEL COMPAÑERO */}
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-2xl font-bold text-gray-800">Gestión de Áreas</h2>
+        <button
+          onClick={() => {
+            setEditingArea(null);
+            setFormData({ nombre: '', descripcion: '', activo: true });
+            setShowModal(true);
+          }}
+          className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg transition-colors shadow-sm"
+        >
+          + Nueva Área
+        </button>
+      </div>
 
-            const method = isEdit ? "PUT" : "POST"
+      {/* TABLA DEL COMPAÑERO */}
+      <div className="overflow-x-auto bg-white rounded-lg border shadow-sm">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-100">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nombre</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Descripción</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider text-center">Acciones</th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {areas.map((area) => (
+              <tr key={area.id} className="hover:bg-gray-50 transition-colors">
+                <td className="px-6 py-4 text-sm text-gray-500">{area.id}</td>
+                <td className="px-6 py-4 text-sm font-semibold text-gray-900">{area.nombre}</td>
+                <td className="px-6 py-4 text-sm text-gray-600">{area.descripcion || '-'}</td>
+                <td className="px-6 py-4 text-sm">
+                  <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                    area.activo ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                  }`}>
+                    {area.activo ? 'Activo' : 'Inactivo'}
+                  </span>
+                </td>
+                <td className="px-6 py-4 text-sm text-center font-medium space-x-4">
+                  <button
+                    onClick={() => {
+                      setEditingArea(area);
+                      setFormData({ 
+                        nombre: area.nombre, 
+                        descripcion: area.descripcion, 
+                        activo: area.activo 
+                      });
+                      setShowModal(true);
+                    }}
+                    className="text-blue-600 hover:text-blue-900"
+                  >
+                    Editar
+                  </button>
+                  <button
+                    onClick={() => handleDelete(area.id)}
+                    className="text-red-600 hover:text-red-900"
+                  >
+                    Eliminar
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
-            const res = await fetch(url, {
-                method,
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify(selectedArea)
-            })
+      {/* MODAL DEL COMPAÑERO */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md">
+            <h3 className="text-xl font-bold text-gray-800 mb-4 border-b pb-2">
+              {editingArea ? 'Editar Área' : 'Registrar Nueva Área'}
+            </h3>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
+                <input
+                  type="text"
+                  placeholder="Ej: Sistemas, Mantenimiento..."
+                  value={formData.nombre}
+                  onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 outline-none"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
+                <textarea
+                  placeholder="Detalles del departamento"
+                  value={formData.descripcion}
+                  onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 outline-none"
+                  rows="3"
+                />
+              </div>
+              
+              {/* Checkbox de activo añadido para control administrativo */}
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="activo"
+                  checked={formData.activo}
+                  onChange={(e) => setFormData({ ...formData, activo: e.target.checked })}
+                  className="w-4 h-4 accent-amber-500"
+                />
+                <label htmlFor="activo" className="text-sm text-gray-700 font-medium">Área activa</label>
+              </div>
 
-            const text = await res.text()
-
-
-            if (!res.ok) {
-                throw new Error("Error en backend")
-            }
-
-            await fetchAreas()
-            setShowModal(false)
-            setSelectedArea(null)
-
-        } catch (error) {
-            console.error("Error guardando área:", error)
-        } finally {
-            setLoading(false) // 🔥 SIEMPRE apagar loading
-        }
-    }
-
-    //  Eliminar
-    const handleDelete = async (area) => {
-        if (!confirm(`¿Eliminar área "${area.nombre}"?`)) return
-
-        try {
-            await fetch(`http://localhost:3000/api/areas/${area.id}`, {
-                method: "DELETE"
-            })
-
-            await fetchAreas()
-        } catch (error) {
-            console.error("Error eliminando:", error)
-        }
-    }
-
-    return (
-        <div className="p-6">
-
-            {/* HEADER */}
-            <div className="flex justify-between items-center mb-4">
-                <h1 className="text-2xl font-bold">Áreas</h1>
-
-                <button
-                    onClick={handleCreate}
-                    className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg"
+              <div className="flex justify-end gap-3 pt-4">
+                <button 
+                  type="button" 
+                  onClick={() => setShowModal(false)} 
+                  className="px-4 py-2 border rounded-lg text-gray-600 hover:bg-gray-50 transition-colors"
                 >
-                    <Plus size={16} /> Nueva Área
+                  Cancelar
                 </button>
-            </div>
-
-            {/* BUSCADOR */}
-            <input
-                type="text"
-                placeholder="Buscar área..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="border p-2 mb-4 w-full rounded-lg"
-            />
-
-            {/* TABLA */}
-            <table className="w-full border rounded-lg overflow-hidden">
-                <thead className="bg-gray-100">
-                    <tr>
-                        <th className="p-2">Nombre</th>
-                        <th className="p-2">Descripción</th>
-                        <th className="p-2">Estado</th>
-                        <th className="p-2">Acciones</th>
-                    </tr>
-                </thead>
-
-                <tbody>
-                    {filteredAreas.map((a) => (
-                        <tr key={a.id} className="text-center border-t">
-                            <td>{a.nombre}</td>
-                            <td>{a.descripcion || "-"}</td>
-                            <td>
-                                <span className={`px-2 py-1 rounded text-xs ${a.activo ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
-                                    }`}>
-                                    {a.activo ? "Activo" : "Inactivo"}
-                                </span>
-                            </td>
-
-                            <td className="flex justify-center gap-2 py-2">
-                                <button onClick={() => handleEdit(a)}>
-                                    <Pencil size={16} />
-                                </button>
-
-                                <button onClick={() => handleDelete(a)}>
-                                    <Trash2 size={16} />
-                                </button>
-                            </td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
-
-            {/* MODAL */}
-            {showModal && selectedArea && (
-                <div className="fixed inset-0 bg-black/50 flex justify-center items-center">
-
-                    <div className="bg-white p-6 rounded-lg w-96">
-                        <h2 className="text-lg font-bold mb-4">
-                            {isEdit ? "Editar Área" : "Nueva Área"}
-                        </h2>
-
-                        <input
-                            type="text"
-                            placeholder="Nombre"
-                            value={selectedArea.nombre}
-                            onChange={(e) =>
-                                setSelectedArea({ ...selectedArea, nombre: e.target.value })
-                            }
-                            className="border p-2 w-full mb-2"
-                        />
-
-                        <textarea
-                            placeholder="Descripción"
-                            value={selectedArea.descripcion || ""}
-                            onChange={(e) =>
-                                setSelectedArea({ ...selectedArea, descripcion: e.target.value })
-                            }
-                            className="border p-2 w-full mb-2" />
-
-                        <label className="flex items-center gap-2 mb-4">
-                            <input
-                                type="checkbox"
-                                checked={selectedArea.activo}
-                                onChange={(e) =>
-                                    setSelectedArea({ ...selectedArea, activo: e.target.checked })
-                                } />
-                            Activo
-                        </label>
-
-                        <div className="flex justify-end gap-2">
-                            <button
-                                onClick={() => setShowModal(false)}
-                                className="bg-gray-300 px-3 py-1 rounded">
-                                Cancelar
-                            </button>
-
-                            <button
-                                onClick={handleSave}
-                                disabled={loading}
-                                className="bg-blue-500 text-white px-3 py-1 rounded disabled:opacity-50">
-                                {loading ? "Guardando..." : "Guardar"}
-                            </button>
-                        </div>
-                    </div>
-
-                </div>
-            )}
+                <button 
+                  type="submit" 
+                  className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-lg transition-all"
+                >
+                  {editingArea ? 'Actualizar' : 'Crear Área'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
-    )
-}
+      )}
+    </div>
+  );
+};
+
+export default AdminAreas;

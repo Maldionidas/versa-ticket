@@ -1,146 +1,122 @@
-import { useState, useMemo } from "react"
-import { AdminUsers } from "../components/adminUsers"
-import { AdminAreas } from "../components/adminAreas"
-import { AdminRoles } from "../components/adminRoles"
-import { AdminCategorias } from "../components/adminCategorias"
-import { AdminCampos } from "../components/adminCampos"
+// src/pages/panelAdmin.jsx
+import React, { useState, useMemo } from 'react';
+import { useAuth } from '../context/AuthContext';
 
-// helpers simples
-const normalizePermissions = (permisos) => {
+// Importación de sub-componentes
+import { AdminUsers } from "../components/adminUsers";
+import { AdminAreas } from "../components/adminAreas";
+import { AdminRoles } from "../components/adminRoles";
+import { AdminCategorias } from "../components/adminCategorias";
+import { AdminCampos } from "../components/adminCampos";
+
+const AdminPanel = () => {
+  const { user, loading } = useAuth();
+  
+  // Helper para normalizar permisos (Tu lógica Senior)
+  const permisos = useMemo(() => {
     try {
-        if (!permisos) return {}
-        return typeof permisos === "string"
-            ? JSON.parse(permisos)
-            : permisos
-    } catch {
-        return {}
+      if (!user?.permisos) return {};
+      return typeof user.permisos === "string" 
+        ? JSON.parse(user.permisos) 
+        : user.permisos;
+    } catch { return {}; }
+  }, [user]);
+
+  // Definición de pestañas con lógica de acceso (Fusión de ambos)
+  const allTabs = [
+    { 
+      id: 'users', 
+      label: '👥 Usuarios', 
+      component: AdminUsers, 
+      visible: permisos?.users?.read || user?.rol_id === 2 
+    },
+    { 
+      id: 'roles', 
+      label: '🔐 Roles', 
+      component: AdminRoles, 
+      visible: permisos?.roles?.read || user?.rol_id === 2 
+    },
+    { 
+      id: 'areas', 
+      label: '🏢 Áreas', 
+      component: AdminAreas, 
+      visible: permisos?.areas?.read || user?.rol_id === 2 
+    },
+    { 
+      id: 'categorias', 
+      label: '📁 Categorías', 
+      component: AdminCategorias, 
+      visible: permisos?.categorias?.read || user?.rol_id === 2 
+    },
+    { 
+      id: 'campos', 
+      label: '🛠️ Campos', 
+      component: AdminCampos, 
+      visible: permisos?.campos?.read || user?.rol_id === 2 
     }
-}
+  ];
 
-const can = (permisos, module, action) => {
-    return permisos?.[module]?.[action] === true
-}
+  // Filtramos solo las pestañas que el usuario puede ver
+  const availableTabs = allTabs.filter(tab => tab.visible);
+  
+  const [activeTab, setActiveTab] = useState(availableTabs[0]?.id || '');
 
-export function AdminPanel({ user }) {
-    const [view, setView] = useState("users")
-
-    const permisos = useMemo(() => {
-        return normalizePermissions(user?.permisos)
-    }, [user])
-
-    // 🔐 Validar accesos disponibles
-    const canViewUsers = can(permisos, "users", "read")
-    const canViewAreas = can(permisos, "areas", "read")
-    const canViewRoles = can(permisos, "roles", "read")
-    const canViewCategorias = can(permisos, "categorias", "read")
-    const canViewCampos = can(permisos, "campos", "read")
-    // 🚨 Si no tiene acceso a nada
-    if (!canViewUsers && !canViewAreas && !canViewRoles && !canViewCategorias && !canViewCampos) {
-        return (
-            <div className="p-6">
-                <div className="bg-red-100 text-red-700 p-4 rounded">
-                    No tienes acceso al panel de administración
-                </div>
-            </div>
-        )
-    }
-
+  if (loading) {
     return (
-        <div className="p-6">
+      <div className="flex items-center justify-center h-screen bg-gray-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500"></div>
+      </div>
+    );
+  }
 
-            {/* TABS */}
-            <div className="flex gap-2 border-b mb-4">
-
-                {canViewUsers && (
-                    <button
-                        onClick={() => setView("users")}
-                        className={`px-4 py-2 rounded-t-lg border ${
-                            view === "users"
-                                ? "bg-white border-b-white font-bold"
-                                : "bg-gray-100"
-                        }`}
-                    >
-                        Usuarios
-                    </button>
-                )}
-
-                {canViewAreas && (
-                    <button
-                        onClick={() => setView("areas")}
-                        className={`px-4 py-2 rounded-t-lg border ${
-                            view === "areas"
-                                ? "bg-white border-b-white font-bold"
-                                : "bg-gray-100"
-                        }`}
-                    >
-                        Áreas
-                    </button>
-                )}
-
-                {canViewRoles && (
-                    <button
-                        onClick={() => setView("roles")}
-                        className={`px-4 py-2 rounded-t-lg border ${
-                            view === "roles"
-                                ? "bg-white border-b-white font-bold"
-                                : "bg-gray-100"
-                        }`}
-                    >
-                        Roles
-                    </button>
-                )}
-                
-                {canViewCategorias && (
-                    <button
-                        onClick={() => setView("categorias")}
-                        className={`px-4 py-2 rounded-t-lg border ${
-                            view === "categorias"
-                                ? "bg-white border-b-white font-bold"
-                                : "bg-gray-100"
-                        }`}
-                    >
-                        Categorías
-                    </button>
-                )}
-                {canViewCampos && (
-                    <button
-                        onClick={() => setView("campos")}
-                        className={`px-4 py-2 rounded-t-lg border ${
-                            view === "campos"
-                                ? "bg-white border-b-white font-bold"
-                                : "bg-gray-100"
-                        }`}
-                    >
-                        Campos
-                    </button>
-                )}
-
-            </div>
-
-            {/* CONTENIDO PROTEGIDO */}
-            <div className="bg-white border p-4 rounded-b-lg">
-
-                {view === "users" && canViewUsers && (
-                    <AdminUsers user={user} permisos={permisos} />
-                )}
-
-                {view === "areas" && canViewAreas && (
-                    <AdminAreas user={user} permisos={permisos} />
-                )}
-
-                {view === "roles" && canViewRoles && (
-                    <AdminRoles user={user} permisos={permisos} />
-                )}
-                {view === "categorias" && canViewCategorias && (
-                    <AdminCategorias user={user} permisos={permisos} />
-                )}
-                {view === "campos" && canViewCampos && (
-                    <AdminCampos user={user} permisos={permisos} />
-                )}
-
-
-            </div>
-
+  // Si no hay pestañas disponibles, significa que no tiene acceso a nada
+  if (availableTabs.length === 0) {
+    return (
+      <div className="p-12 text-center">
+        <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-xl inline-block shadow-sm">
+          <p className="font-bold text-lg">Acceso Denegado</p>
+          <p className="text-sm">No tienes permisos para visualizar ningún módulo administrativo.</p>
         </div>
-    )
-}
+      </div>
+    );
+  }
+
+  const ActiveComponent = availableTabs.find(tab => tab.id === activeTab)?.component;
+
+  return (
+    <div className="p-6 md:p-8 animate-in fade-in duration-500">
+      <div className="mb-8">
+        <h1 className="text-3xl font-black text-gray-800 tracking-tight">Panel de Administración</h1>
+        <p className="text-gray-500">
+          Gestionando VersaTicket como <span className="font-bold text-amber-600">{user?.nombre}</span>
+        </p>
+      </div>
+
+      {/* TABS (Diseño del compañero con tu lógica) */}
+      <div className="flex gap-2 border-b border-gray-200 mb-6 overflow-x-auto pb-1 no-scrollbar">
+        {availableTabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`px-6 py-3 font-bold transition-all duration-300 whitespace-nowrap rounded-t-xl text-sm uppercase tracking-wider ${
+              activeTab === tab.id
+                ? 'border-b-4 border-amber-500 text-amber-600 bg-amber-50/50 shadow-sm'
+                : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* CONTENIDO (Diseño del compañero) */}
+      <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden min-h-[60vh]">
+        <div className="p-2">
+           {ActiveComponent && <ActiveComponent user={user} permisos={permisos} />}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default AdminPanel;

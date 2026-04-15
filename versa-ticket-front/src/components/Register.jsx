@@ -1,6 +1,10 @@
 import { useState } from "react"
 
+<<<<<<< HEAD
 export function Register() {
+=======
+export default function Register() {
+>>>>>>> origin/Login_CV2
   const [form, setForm] = useState({
     nombre: "",
     apellido: "",

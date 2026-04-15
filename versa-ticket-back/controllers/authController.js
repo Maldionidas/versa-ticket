@@ -44,7 +44,6 @@ exports.registerUser = async (req, res) => {
 };
 
 //login
-
 exports.login = async (req, res) => {
     const { email, password } = req.body;
 
@@ -73,6 +72,7 @@ exports.login = async (req, res) => {
             return res.status(401).json({ message: "Usuario desactivado" });
         }
 
+        // Validación segura con bcrypt
         const passwordValid = await bcrypt.compare(password, user.password_hash);
 
         if (!passwordValid) {
@@ -93,11 +93,10 @@ exports.login = async (req, res) => {
             { expiresIn: "24h" }
         );
 
-        // Respuesta exitosa
         res.json({
             message: "Login exitoso",
             token,
-            user: { // Lo cambié de 'usuario' a 'user' para que coincida con tu AuthContext de React
+            user: { // Coincide con tu AuthContext de React
                 id: user.id,
                 nombre: user.nombre,
                 email: user.email,

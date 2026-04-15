@@ -1,74 +1,103 @@
+// src/App.jsx
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, useOutletContext } from 'react-router-dom';
 
-// Contexto y Seguridad 
+// Contexto y Seguridad
 import { AuthProvider, useAuth } from './context/AuthContext';
 import PrivateRoute from './components/PrivateRoute';
 
-// Páginas y Componentes (views)
+// Páginas y Componentes
 import Login from './pages/Login';
+import Inbox from './pages/Inbox';
 import Dashboard from './pages/Dashboard';
+import AssignedTickets from './pages/AssignedTickets';
 import { TicketSidebar } from './components/sideBar';
-import { CreateTicketForm } from './pages/createTicket';
-import { AdminPanel } from './pages/panelAdmin';
+import { CreateTicketForm } from './pages/createTicket'; // Ajusta según tu nombre de archivo
+import AdminPanel from './pages/panelAdmin';
 
+// ----------------------------------------------------------------------
+// 1. LAYOUT PRINCIPAL (Estructura con Sidebar)
+// ----------------------------------------------------------------------
 const MainLayout = () => {
-    // Extraemos el usuario real que el Login guardó en la memoria global (Context)
-    const { user } = useAuth(); 
+    const { user, loading } = useAuth();
+
+    // Pantalla de carga profesional (Diseño del compañero)
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center h-screen bg-gray-50">
+                <div className="text-center">
+                    <div className="animate-spin h-10 w-10 mx-auto border-4 border-amber-500 border-t-transparent rounded-full"></div>
+                    <p className="mt-4 text-gray-600 font-medium">Sincronizando VersaTicket...</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
-        <div className="flex h-screen overflow-hidden">
-            {/* 1. El Sidebar se queda estático a la izquierda */}
-            <TicketSidebar user={user} />
+        <div className="flex h-screen overflow-hidden bg-gray-50">
+            {/* Sidebar con acceso al usuario del contexto */}
+            <TicketSidebar />
             
-            <div className="flex-1 overflow-auto bg-background">
-                {/* 2. El Outlet es el "Hueco Dinámico" */}
+            {/* Contenedor dinámico con margen para el Sidebar fijo (ml-64) */}
+            <div className="flex-1 overflow-auto ml-64 p-4">
                 <Outlet context={{ user }} />
             </div>
         </div>
     );
 };
-const AdminPanelWrapper = () => {
-    // Recuperamos el usuario que el Outlet nos pasó en el paso anterior
+
+// ----------------------------------------------------------------------
+// 2. WRAPPER DE ADMINISTRACIÓN (Protección RBAC)
+// ----------------------------------------------------------------------
+const AdminRoute = () => {
     const { user } = useOutletContext();
     
-    // Validamos: Si no eres Administrador...
-    if (user?.rol !== "Administrador" && user?.rol_id !== 1) {
-        // ...te pateo de regreso a la pantalla de crear ticket
-        return <Navigate to="/crear-ticket" />;
+    // Si no es Admin (Rol 2), lo mandamos al Inbox
+    if (user?.rol_id !== 2) {
+        return <Navigate to="/inbox" replace />;
     }
     
-    // Si pasaste la validación, te muestro el componente real
-    return <AdminPanel user={user} />;
+    return <AdminPanel />;
 };
+
+// ----------------------------------------------------------------------
+// 3. COMPONENTE PRINCIPAL
+// ----------------------------------------------------------------------
 function App() {
     return (
-        <Router>
-            {/* AuthProvider envuelve todo para que cualquier pantalla sepa si estás logueado */}
-            <AuthProvider>
+        <AuthProvider>
+            <Router>
                 <Routes>
-                    {/* 1. RUTA PÚBLICA */}
+                    {/* RUTA PÚBLICA */}
                     <Route path="/login" element={<Login />} />
 
-                    {/* 2. RUTAS PROTEGIDAS */}
-                    {/* Si intentas entrar aquí, PrivateRoute revisa que tengas Token. Si tienes, pinta el MainLayout */}
+                    {/* RUTAS PROTEGIDAS (Requieren Token) */}
                     <Route element={<PrivateRoute><MainLayout /></PrivateRoute>}>
                         
-                        {/* Estas son las pantallas que se inyectan dentro del <Outlet /> del MainLayout */}
-                        <Route path="/crear-ticket" element={<CreateTicketForm />} />
-                        <Route path="/admin" element={<AdminPanelWrapper />} />
+                        {/* Dashboard general */}
                         <Route path="/dashboard" element={<Dashboard />} />
                         
-                        {/* Redirección por defecto */}
-                        <Route path="/" element={<Navigate to="/crear-ticket" />} />
+                        {/* Inbox: Para admin es global, para usuario es personal */}
+                        <Route path="/inbox" element={<Inbox />} />
+                        
+                        {/* Creación de tickets */}
+                        <Route path="/create-ticket" element={<CreateTicketForm />} />
+                        
+                        {/* Ruta para Agentes (Rol 3) */}
+                        <Route path="/assigned-tickets" element={<AssignedTickets />} />
+
+                        {/* Ruta para Administradores (Rol 2) con validación extra */}
+                        <Route path="/admin" element={<AdminRoute />} />
+                        
+                        {/* Redirecciones de conveniencia */}
+                        <Route path="/" element={<Navigate to="/dashboard" replace />} />
                     </Route>
 
-                    {/* 3. MANEJO DE ERRORES */}
-                    {/* Si escriben una ruta que no existe (ej. /asdfg), los mandamos al inicio */}
-                    <Route path="*" element={<Navigate to="/" />} />
+                    {/* Manejo de 404 */}
+                    <Route path="*" element={<Navigate to="/dashboard" replace />} />
                 </Routes>
-            </AuthProvider>
-        </Router>
+            </Router>
+        </AuthProvider>
     );
 }
 

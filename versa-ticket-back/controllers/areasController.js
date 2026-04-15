@@ -58,8 +58,24 @@ const deleteArea = async (req, res) => {
   }
 }
 
+const getAreaById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await db.query("SELECT * FROM areas WHERE id = $1", [id]);
+    
+    if (result.length === 0) {
+      return res.status(404).json({ message: "Área no encontrada" });
+    }
+    res.json(result[0]);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Error obteniendo área" });
+  }
+};
+
 module.exports = {
   getAreas,
+  getAreaById,
   createArea,
   updateArea,
   deleteArea
