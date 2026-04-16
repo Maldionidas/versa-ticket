@@ -1,5 +1,5 @@
 // controllers/statsController.js
-const sql = require("../config/db");
+const { sql } = require("../config/db");
 
 // ==========================================
 // ESTADISTICAS GENERALES (Tarjetas numericas)

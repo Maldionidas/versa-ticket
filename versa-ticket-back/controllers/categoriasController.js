@@ -1,4 +1,4 @@
-const sql = require("../config/db");
+const { sql } = require("../config/db");
 
 // =========================
 // OBTENER TODAS (Admin) - De tu versión

@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react'
-import { ArrowLeft, UploadCloud, X, Paperclip } from 'lucide-react' // Importé iconos para los archivos
-import mascot from '../assets/mascota.jpeg'
+import { ArrowLeft, UploadCloud, X, Paperclip } from 'lucide-react'
+import mascot from '../assets/mascota.png'
+import api from '../api/axios'
+import { useAuth } from '../context/AuthContext'
 
 export function CreateTicketForm() {
+    const { user } = useAuth()
     const [areas, setAreas] = useState([])
     const [prioridades, setPrioridades] = useState([])
     const [categorias, setCategorias] = useState([])
@@ -15,39 +18,34 @@ export function CreateTicketForm() {
         area_id: ''
     })
 
-    // NUEVO ESTADO: Para guardar los archivos seleccionados
     const [archivos, setArchivos] = useState([])
     const [responsables, setResponsables] = useState([])
-
-    // Para guardar la configuración de los campos que vienen del backend
     const [camposDinamicos, setCamposDinamicos] = useState([])
-
-    // Para guardar lo que el usuario escribe en esos campos (el state del formulario dinámico)
     const [valoresDinamicos, setValoresDinamicos] = useState({})
 
+    // 1. CARGA INICIAL CON AXIOS
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const resAreas = await fetch("http://localhost:3000/api/catalogos/areas")
-                const dataAreas = await resAreas.json()
+                // Hacemos todas las peticiones en paralelo para que sea súper rápido
+                const [resAreas, resPrioridades, resUsuarios] = await Promise.all([
+                    api.get("/catalogos/areas"),
+                    api.get("/catalogos/prioridades"),
+                    api.get("/users") // Si esta falla por permisos, asegúrate de manejarlo en el back
+                ])
 
-                const resPrioridades = await fetch("http://localhost:3000/api/catalogos/prioridades")
-                const dataPrioridades = await resPrioridades.json()
-
-                const resUsuarios = await fetch("http://localhost:3000/api/users/admin")
-                const dataUsuarios = await resUsuarios.json()
-
-                setResponsables(dataUsuarios)
-                setAreas(dataAreas)
-                setPrioridades(dataPrioridades)
+                setAreas(resAreas.data)
+                setPrioridades(resPrioridades.data)
+                setResponsables(resUsuarios.data)
             } catch (error) {
-                console.error("Error cargando catálogos:", error)
+                console.error("Error cargando catálogos iniciales:", error)
             }
         }
         fetchData()
     }, [])
+
+    // 2. CARGA DINÁMICA DE CATEGORÍAS Y CAMPOS POR ÁREA
     useEffect(() => {
-        // Si no hay área seleccionada, limpiamos todo
         if (!formData.area_id) {
             setCategorias([])
             setCamposDinamicos([])
@@ -57,50 +55,41 @@ export function CreateTicketForm() {
 
         const fetchDatosPorArea = async () => {
             try {
-                // 1. Pedimos las categorías (Lo que ya tenías)
-                const resCat = await fetch(`http://localhost:3000/api/catalogos/categorias/${formData.area_id}`)
-                const dataCat = await resCat.json()
-                setCategorias(dataCat)
+                // Peticiones simultáneas con Axios
+                const [resCat, resCampos] = await Promise.all([
+                    api.get(`/catalogos/categorias/${formData.area_id}`),
+                    api.get(`/campos/area/${formData.area_id}`)
+                ])
 
-                // 2. PEDIMOS LOS CAMPOS DINÁMICOS (¡Esto era lo que faltaba!)
-                const resCampos = await fetch(`http://localhost:3000/api/campos/area/${formData.area_id}`)
-                const dataCampos = await resCampos.json()
-                setCamposDinamicos(dataCampos)
+                setCategorias(resCat.data)
+                
+                // 🛡️ EL BLINDAJE: Nos aseguramos de que sea un arreglo
+                const camposArray = Array.isArray(resCampos.data) ? resCampos.data : [];
+                setCamposDinamicos(camposArray)
 
-                // 3. Inicializamos el estado de las respuestas
+                // Inicializamos los valores de los campos dinámicos de forma segura
                 const valoresIniciales = {}
-                dataCampos.forEach(campo => {
+                camposArray.forEach(campo => {
                     valoresIniciales[campo.id] = campo.tipo_dato === 'checkbox' ? false : ''
                 })
                 setValoresDinamicos(valoresIniciales)
 
             } catch (error) {
                 console.error("Error cargando datos del área:", error)
+                // Si falla, reseteamos a arreglos vacíos para que no explote
+                setCategorias([])
+                setCamposDinamicos([])
             }
         }
 
         fetchDatosPorArea()
     }, [formData.area_id])
 
-    useEffect(() => {
-        if (!formData.area_id) return
-        const fetchCategorias = async () => {
-            try {
-                const res = await fetch(`http://localhost:3000/api/catalogos/categorias/${formData.area_id}`)
-                const data = await res.json()
-                setCategorias(data)
-            } catch (error) {
-                console.error("Error cargando categorías:", error)
-            }
-        }
-        fetchCategorias()
-    }, [formData.area_id])
-
     const handleChange = (e) => {
         const { name, value } = e.target
         setFormData((prev) => ({ ...prev, [name]: value, ...(name === "area_id" && { categoria_id: "" }) }))
     }
-    // Este handler es vital para los campos dinámicos
+
     const handleDynamicChange = (campoId, valor) => {
         setValoresDinamicos(prev => ({
             ...prev,
@@ -108,92 +97,63 @@ export function CreateTicketForm() {
         }))
     }
 
-    // NUEVO HANDLER: Captura los archivos seleccionados
     const handleFileChange = (e) => {
         const files = Array.from(e.target.files)
         setArchivos(prev => [...prev, ...files])
-        // Limpiamos el input por si el usuario borra un archivo y quiere volver a subir exactamente el mismo
         e.target.value = null
     }
 
-    // NUEVO HANDLER: Elimina un archivo de la lista antes de enviar
     const removeFile = (indexToRemove) => {
         setArchivos(prev => prev.filter((_, index) => index !== indexToRemove))
     }
 
+    // 3. ENVÍO DE FORMULARIO CON AXIOS
     const handleSubmit = async (e) => {
         e.preventDefault()
 
         try {
-            // CAMBIO CRUCIAL: Usamos FormData en lugar de JSON para poder adjuntar archivos binarios
-            const submitData = new FormData()
+            const payload = {
+                titulo: formData.titulo,
+                descripcion: formData.descripcion,
+                prioridad_id: Number(formData.prioridad_id),
+                categoria_id: Number(formData.categoria_id),
+                area_id: Number(formData.area_id),
+                estado_id: 1, 
+                usuario_id: user?.id,
+                valores_dinamicos: valoresDinamicos
+            };
 
-            // 1. Agregamos los campos de texto
-            submitData.append('titulo', formData.titulo)
-            submitData.append('descripcion', formData.descripcion)
-            submitData.append('prioridad_id', formData.prioridad_id)
-            submitData.append('categoria_id', formData.categoria_id)
-            submitData.append('area_id', formData.area_id)
-            submitData.append('estado_id', 1) // Abierto
-            submitData.append('usuario_id', 3) // usuario de prueba
-            // Agrega esta línea justo antes del foreach de los archivos
-            submitData.append('valores_dinamicos', JSON.stringify(valoresDinamicos))
+            // Enviamos JSON normal
+            const response = await api.post("/tickets", payload)
 
-            // 2. Agregamos los archivos (iteramos porque pueden ser múltiples)
-            archivos.forEach(archivo => {
-                // 'archivos' será el nombre del campo que el backend debe leer
-                submitData.append('archivos', archivo)
-            })
-
-            const response = await fetch("http://localhost:3000/api/tickets", {
-                method: "POST",
-                // ⚠️ IMPORTANTE: Cuando usas FormData, NO debes configurar el "Content-Type". 
-                // El navegador lo hace automáticamente (pone multipart/form-data y genera el boundary).
-                body: submitData,
-            })
-
-            const data = await response.json()
-
-            if (!response.ok) {
-                throw new Error(data.message || "Error creando ticket")
-            }
-
-            console.log("Ticket creado:", data)
+            console.log("Ticket creado:", response.data)
             alert("Ticket creado exitosamente!")
 
-            // Limpiamos todo el formulario
-            setFormData({
-                titulo: '',
-                descripcion: '',
-                prioridad_id: '2',
-                categoria_id: '',
-                area_id: '',
-            })
-            setArchivos([]) // Limpiamos archivos
+            // Limpieza
+            setFormData({ titulo: '', descripcion: '', prioridad_id: '2', categoria_id: '', area_id: '' })
+            setArchivos([]) 
+            setValoresDinamicos({})
 
         } catch (error) {
-            console.error(error)
-            alert("Error creando ticket")
+            console.error("Error creando ticket:", error)
+            alert(error.response?.data?.message || "Error creando ticket")
         }
     }
 
     return (
         <div className="flex-1 overflow-auto">
             <div className="min-h-full bg-background p-6">
-                {/* Back button */}
                 <button className="mb-6 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors">
                     <ArrowLeft className="h-4 w-4" />
                     Regresar a tickets
                 </button>
 
-                {/* Header */}
                 <div className="mb-6 rounded-lg bg-primary px-6 py-5">
                     <h1 className="text-2xl font-bold text-primary-foreground">Crear un nuevo Ticket</h1>
                     <p className="text-primary-foreground/80">Llena a detalle el formulario para resolver el problema</p>
                 </div>
 
                 <div className="flex gap-6">
-                    {/* Main form */}
                     <div className="flex-1 rounded-lg border border-border bg-white p-6 shadow-sm">
                         <div className="mb-4 border-l-4 border-accent pl-4">
                             <h2 className="text-xl font-semibold text-primary">Detalles del Ticket</h2>
@@ -203,8 +163,6 @@ export function CreateTicketForm() {
                         </p>
 
                         <form onSubmit={handleSubmit} className="space-y-6">
-
-                            {/* ... (TÍTULO Y DESCRIPCIÓN SE MANTIENEN IGUAL) ... */}
                             <div className="space-y-2">
                                 <label htmlFor="titulo" className="block text-sm font-medium text-foreground">
                                     Título <span className="text-destructive">*</span>
@@ -237,7 +195,6 @@ export function CreateTicketForm() {
                                 />
                             </div>
 
-                            {/* ... (PRIORIDAD, CATEGORÍA Y ÁREA SE MANTIENEN IGUAL) ... */}
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
                                     <label htmlFor="prioridad_id" className="block text-sm font-medium text-foreground">Prioridad <span className="text-destructive">*</span></label>
@@ -261,7 +218,7 @@ export function CreateTicketForm() {
                                     {areas.map((a) => (<option key={a.id} value={a.id}>{a.nombre}</option>))}
                                 </select>
                             </div>
-                            {/* Renderizado dinámico dentro de tu form */}
+
                             {camposDinamicos.length > 0 && (
                                 <div className="space-y-4 border-t pt-4 mt-4">
                                     <h3 className="font-semibold text-primary flex items-center gap-2">
@@ -270,7 +227,6 @@ export function CreateTicketForm() {
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         {camposDinamicos.map(campo => {
-                                            // AQUÍ EL FIX: Parseamos las opciones de forma segura
                                             const opciones = campo.opciones ?
                                                 (typeof campo.opciones === 'string' ? JSON.parse(campo.opciones) : campo.opciones)
                                                 : [];
@@ -281,27 +237,24 @@ export function CreateTicketForm() {
                                                         {campo.nombre_campo} {campo.requerido && <span className="text-destructive">*</span>}
                                                     </label>
 
-                                                    {/* INPUT TEXT */}
                                                     {campo.tipo_dato === 'text' && (
                                                         <input
                                                             type="text"
                                                             required={campo.requerido}
-                                                            value={valoresDinamicos[campo.id] || ''} // Usamos el estado controlado
+                                                            value={valoresDinamicos[campo.id] || ''}
                                                             onChange={(e) => handleDynamicChange(campo.id, e.target.value)}
                                                             className="w-full rounded-lg border border-input bg-white px-4 py-2 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20"
                                                         />
                                                     )}
 
-                                                    {/* SELECT (Lista desplegable) */}
                                                     {campo.tipo_dato === 'select' && (
                                                         <select
                                                             required={campo.requerido}
-                                                            value={valoresDinamicos[campo.id] || ''} // Usamos el estado controlado
+                                                            value={valoresDinamicos[campo.id] || ''}
                                                             onChange={(e) => handleDynamicChange(campo.id, e.target.value)}
                                                             className="w-full rounded-lg border border-input bg-white px-4 py-2 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20"
                                                         >
                                                             <option value="">Selecciona una opción</option>
-                                                            {/* Usamos la variable 'opciones' ya parseada */}
                                                             {opciones.map((opt, idx) => (
                                                                 <option key={idx} value={opt}>{opt}</option>
                                                             ))}
@@ -314,7 +267,6 @@ export function CreateTicketForm() {
                                 </div>
                             )}
 
-                            {/*Subida de Archivos */}
                             <div className="space-y-2">
                                 <label className="block text-sm font-medium text-foreground">
                                     Evidencia Adjunta (Opcional)
@@ -326,17 +278,10 @@ export function CreateTicketForm() {
                                             <p className="mb-2 text-sm text-muted-foreground"><span className="font-semibold text-primary">Haz clic para subir</span> o arrastra tus archivos</p>
                                             <p className="text-xs text-muted-foreground">PNG, JPG, PDF (Max. 5MB)</p>
                                         </div>
-                                        <input
-                                            id="dropzone-file"
-                                            type="file"
-                                            className="hidden"
-                                            multiple
-                                            onChange={handleFileChange}
-                                        />
+                                        <input id="dropzone-file" type="file" className="hidden" multiple onChange={handleFileChange} />
                                     </label>
                                 </div>
 
-                                {/* Lista de archivos seleccionados con opción de borrar */}
                                 {archivos.length > 0 && (
                                     <ul className="mt-4 space-y-2">
                                         {archivos.map((file, idx) => (
@@ -348,12 +293,7 @@ export function CreateTicketForm() {
                                                         ({(file.size / 1024 / 1024).toFixed(2)} MB)
                                                     </span>
                                                 </div>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => removeFile(idx)}
-                                                    className="text-destructive hover:text-red-700 p-1"
-                                                    title="Eliminar archivo"
-                                                >
+                                                <button type="button" onClick={() => removeFile(idx)} className="text-destructive hover:text-red-700 p-1" title="Eliminar archivo">
                                                     <X className="h-4 w-4" />
                                                 </button>
                                             </li>
@@ -362,7 +302,6 @@ export function CreateTicketForm() {
                                 )}
                             </div>
 
-                            {/* Buttons */}
                             <div className="flex gap-4 pt-4 border-t border-border">
                                 <button type="button" className="flex-1 rounded-lg bg-muted px-4 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted/80 transition-colors">
                                     Cancelar
@@ -374,9 +313,7 @@ export function CreateTicketForm() {
                         </form>
                     </div>
 
-                    {/* ... (EL SIDEBAR SE MANTIENE IGUAL) ... */}
                     <div className="hidden w-72 space-y-4 lg:block">
-                        {/* Help card */}
                         <div className="overflow-hidden rounded-lg border border-border bg-white shadow-sm">
                             <div className="bg-primary p-6 text-center">
                                 <div className="mx-auto mb-3 flex h-20 w-20 items-center justify-center rounded-lg bg-primary-foreground/10">
@@ -389,7 +326,6 @@ export function CreateTicketForm() {
                             </div>
                         </div>
 
-                        {/* Tips card */}
                         <div className="rounded-lg border border-border bg-white p-4 shadow-sm">
                             <h3 className="mb-3 flex items-center gap-2 font-semibold text-primary">
                                 <span>📋</span> Consejos para Mejores Tickets

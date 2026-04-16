@@ -4,7 +4,7 @@ const router = express.Router();
 const rolesController = require("../controllers/rolesController");
 
 // Importamos del middleware unificado
-const { verifyToken, hasPermission } = require("../middlewares/auth");
+const { verifyToken, hasPermission } = require("../middlewares/authMiddleware");
 
 // CAPA 1: Todas las rutas requieren un token valido
 router.use(verifyToken);

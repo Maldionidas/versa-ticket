@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import api from '../api/axios';
 
 // Componente para administración de categorías de tickets (CRUD básico)
 export function AdminCategorias({ user, permisos }) {
@@ -9,7 +10,7 @@ export function AdminCategorias({ user, permisos }) {
     const [showConfirm, setShowConfirm] = useState(false);
     const [areas, setAreas] = useState([]); // Catálogo de áreas para el select
 
-    // Lógica de permisos (ajusta "categorias" al nombre exacto de tu módulo en el JSON de permisos)
+    //logica de permisos    
     const can = (permisos, module, action) => {
         return permisos?.[module]?.[action] === true;
     };
@@ -23,9 +24,8 @@ export function AdminCategorias({ user, permisos }) {
     const fetchCategorias = async () => {
         try {
             // Asumiendo que tu endpoint backend será algo como /api/categorias
-            const res = await fetch("http://localhost:3000/api/categorias");
-            const data = await res.json();
-            setCategorias(data);
+            const res = await api.get("http://localhost:3000/api/categorias");
+            setCategorias(res.data);
         } catch (error) {
             console.error("Error cargando categorías:", error);
         }
@@ -131,20 +131,20 @@ export function AdminCategorias({ user, permisos }) {
 
     return (
         <div className="p-6">
-            <h1 className="text-2xl font-bold mb-4">Categorías de Tickets</h1>
-
-            {canCreate && (
-                <button
-                    onClick={() => {
-                        setSelectedCategoria({ nombre: "", descripcion: "", area_id: "", activo: true });
-                        setOriginalCategoria(null);
-                        setShowModal(true);
-                    }}
-                    className="bg-blue-600 text-white px-4 py-2 rounded-lg mb-4 hover:bg-blue-700"
-                >
-                    + Agregar Categoría
-                </button>
-            )}
+            <div className="flex justify-between items-center mb-8">
+                <div>
+                    <h2 className="text-2xl font-black text-gray-800 tracking-tight">Categorias de tickets</h2>
+                    <p className="text-sm text-gray-500 italic">Categorias a las que puede pertenecer un ticket</p>
+                </div>
+                {canCreate && (
+                    <button
+                        onClick={() => openModal()}
+                        className="bg-amber-500 hover:bg-amber-600 text-white px-5 py-2.5 rounded-xl font-bold transition-all shadow-lg shadow-amber-200 active:scale-95"
+                    >
+                        + Nueva Área
+                    </button>
+                )}
+            </div>
 
             <div className="overflow-x-auto">
                 <table className="min-w-full border border-gray-200">
@@ -159,7 +159,7 @@ export function AdminCategorias({ user, permisos }) {
                         </tr>
                     </thead>
                     <tbody>
-                        {categorias.map((c) => (
+                        {Array.isArray(categorias) && categorias.map((c) => (
                             <tr key={c.id} className="text-center hover:bg-gray-50">
                                 <td className="p-2 border">{c.id}</td>
                                 <td className="p-2 border font-medium">{c.nombre}</td>

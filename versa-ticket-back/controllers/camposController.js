@@ -1,4 +1,4 @@
-const sql = require("../config/db");
+const { sql } = require("../config/db");
 
 // ==========================================
 // OBTENER TODOS LOS CAMPOS (Para el Admin Panel)

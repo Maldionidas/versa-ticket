@@ -3,7 +3,7 @@ const router = express.Router();
 const sql = require('../config/db');
 
 // Importamos el middleware de seguridad unificado
-const { verifyToken } = require('../middlewares/auth');
+const { verifyToken } = require('../middlewares/authMiddleware');
 
 // Protegemos la ruta inyectando verifyToken
 router.get('/stats', verifyToken, async (req, res) => {

@@ -1,7 +1,7 @@
 // src/pages/Dashboard.jsx
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import api from '../api/auth';   // ← Import correcto (instancia de axios)
+import api from '../api/axios'; 
 import {
   LayoutDashboard,
   Ticket,

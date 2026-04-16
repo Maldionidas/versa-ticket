@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
+import api from '../api/axios'; // Usamos la instancia con el token
 
 export function AdminCampos({ user, permisos }) {
     const [campos, setCampos] = useState([]);
@@ -7,33 +8,45 @@ export function AdminCampos({ user, permisos }) {
     const [originalCampo, setOriginalCampo] = useState(null);
     const [showModal, setShowModal] = useState(false);
     const [showConfirm, setShowConfirm] = useState(false);
+    const [loading, setLoading] = useState(true);
 
     // Estado temporal para manejar la creación de opciones en listas desplegables
     const [nuevaOpcion, setNuevaOpcion] = useState("");
 
     // Lógica de permisos
-    const can = (permisos, module, action) => permisos?.[module]?.[action] === true;
-    const canCreate = can(permisos, "campos", "create");
-    const canEdit = can(permisos, "campos", "update");
-    const canDelete = can(permisos, "campos", "delete");
-    const canRead = can(permisos, "campos", "read");
+    const safePermisos = useMemo(() => {
+        try {
+            if (!permisos) return {};
+            return typeof permisos === "string" ? JSON.parse(permisos) : permisos;
+        } catch { return {}; }
+    }, [permisos]);
+
+    const can = (module, action) => {
+        // Super Admin (Rol 2) tiene bypass total
+        if (user?.rol_id === 2) return true;
+        return safePermisos?.[module]?.[action] === true;
+    };
+    const canCreate = can("campos", "create");
+    const canEdit = can("campos", "update");
+    const canDelete = can("campos", "delete");
+    const canRead = can("campos", "read");
 
     const isEdit = !!originalCampo;
 
     const fetchData = async () => {
         try {
+            setLoading(true);
             const [resCampos, resAreas] = await Promise.all([
-                fetch("http://localhost:3000/api/campos"),
-                fetch("http://localhost:3000/api/catalogos/areas")
+                api.get("/campos"),
+                api.get("/catalogos/areas")
             ]);
-            
-            const dataCampos = await resCampos.json();
-            const dataAreas = await resAreas.json();
-            
-            setCampos(dataCampos);
-            setAreas(dataAreas);
+
+            setCampos(resCampos.data);
+            setAreas(resAreas.data);
         } catch (error) {
             console.error("Error cargando datos:", error);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -44,10 +57,10 @@ export function AdminCampos({ user, permisos }) {
     const handleEdit = (campo) => {
         if (!canEdit) return;
         // Nos aseguramos de que las opciones sean un arreglo, incluso si vienen nulas de la BD
-        const opcionesArray = campo.opciones ? 
-            (typeof campo.opciones === 'string' ? JSON.parse(campo.opciones) : campo.opciones) 
+        const opcionesArray = campo.opciones ?
+            (typeof campo.opciones === 'string' ? JSON.parse(campo.opciones) : campo.opciones)
             : [];
-            
+
         const campoToEdit = { ...campo, opciones: opcionesArray };
         setSelectedCampo(campoToEdit);
         setOriginalCampo(campoToEdit);
@@ -61,9 +74,9 @@ export function AdminCampos({ user, permisos }) {
         try {
             const res = await fetch(`http://localhost:3000/api/campos/${campo.id}`, { method: "DELETE" });
             const data = await res.json();
-            
+
             if (!res.ok) throw new Error(data.message);
-            
+
             setCampos((prev) => prev.filter(c => c.id !== campo.id));
         } catch (error) {
             alert(error.message); // Muestra el mensaje de fail-safe que configuramos en el backend
@@ -133,6 +146,9 @@ export function AdminCampos({ user, permisos }) {
         if (originalCampo.activo !== selectedCampo.activo) changes.push({ field: "Activo", before: originalCampo.activo ? "Sí" : "No", after: selectedCampo.activo ? "Sí" : "No" });
         return changes;
     };
+    if (loading && canRead) {
+        return <div className="p-12 text-center text-gray-500 animate-pulse font-bold">Validando credenciales de acceso...</div>;
+    }
 
     if (!canRead) {
         return <div className="p-6"><div className="bg-red-100 text-red-700 p-4 rounded">No tienes permiso para ver esta sección.</div></div>;
@@ -140,21 +156,20 @@ export function AdminCampos({ user, permisos }) {
 
     return (
         <div className="p-6">
-            <h1 className="text-2xl font-bold mb-4">Campos Personalizados por Área</h1>
-
-            {canCreate && (
-                <button
-                    onClick={() => {
-                        setSelectedCampo({ nombre_campo: "", tipo_dato: "text", area_id: "", requerido: false, activo: true, opciones: [] });
-                        setOriginalCampo(null);
-                        setNuevaOpcion("");
-                        setShowModal(true);
-                    }}
-                    className="bg-blue-600 text-white px-4 py-2 rounded-lg mb-4 hover:bg-blue-700"
-                >
-                    + Agregar Campo
-                </button>
-            )}
+            <div className="flex justify-between items-center mb-8">
+                <div>
+                    <h2 className="text-2xl font-black text-gray-800 tracking-tight">Campos</h2>
+                    <p className="text-sm text-gray-500 italic">Administrar y crear campos personalizados para los tickets segun el area.</p>
+                </div>
+                {canCreate && (
+                    <button
+                        onClick={() => openModal()}
+                        className="bg-amber-500 hover:bg-amber-600 text-white px-5 py-2.5 rounded-xl font-bold transition-all shadow-lg shadow-amber-200 active:scale-95"
+                    >
+                        + Nueva Área
+                    </button>
+                )}
+            </div>
 
             <div className="overflow-x-auto">
                 <table className="min-w-full border border-gray-200">
@@ -246,13 +261,13 @@ export function AdminCampos({ user, permisos }) {
                                 <div className="bg-gray-50 p-3 rounded border">
                                     <label className="block text-sm font-medium text-gray-700 mb-2">Opciones de la lista</label>
                                     <div className="flex gap-2 mb-2">
-                                        <input 
-                                            type="text" 
-                                            value={nuevaOpcion} 
-                                            onChange={(e) => setNuevaOpcion(e.target.value)} 
+                                        <input
+                                            type="text"
+                                            value={nuevaOpcion}
+                                            onChange={(e) => setNuevaOpcion(e.target.value)}
                                             onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), agregarOpcion())}
-                                            className="border p-1.5 flex-1 rounded text-sm" 
-                                            placeholder="Nueva opción..." 
+                                            className="border p-1.5 flex-1 rounded text-sm"
+                                            placeholder="Nueva opción..."
                                         />
                                         <button type="button" onClick={agregarOpcion} className="bg-gray-800 text-white px-3 py-1.5 rounded text-sm hover:bg-gray-700">
                                             Agregar
@@ -301,8 +316,8 @@ export function AdminCampos({ user, permisos }) {
                             <button
                                 onClick={() => setShowConfirm(true)}
                                 disabled={
-                                    !selectedCampo.nombre_campo || 
-                                    !selectedCampo.area_id || 
+                                    !selectedCampo.nombre_campo ||
+                                    !selectedCampo.area_id ||
                                     ((selectedCampo.tipo_dato === 'select' || selectedCampo.tipo_dato === 'radio') && (!selectedCampo.opciones || selectedCampo.opciones.length === 0))
                                 }
                                 className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"

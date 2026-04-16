@@ -1,27 +1,52 @@
-//components/adminAreas.jsx
-import React, { useState, useEffect } from 'react';
-import api from '../api/axios'; // Usamos la instancia con el token
+import React, { useState, useEffect, useMemo } from 'react';
+import api from '../api/axios';
 
-const AdminAreas = () => {
+export function AdminAreas({ user, permisos }) {
   const [areas, setAreas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingArea, setEditingArea] = useState(null);
-  
-  // Agregué 'activo' al formData porque es vital para el control administrativo
   const [formData, setFormData] = useState({ 
     nombre: '', 
     descripcion: '', 
     activo: true 
   });
 
+  // ----------------------------------------------------------------------
+  // 1. LÓGICA DE PERMISOS BLINDADA (Senior Style)
+  // ----------------------------------------------------------------------
+  const safePermisos = useMemo(() => {
+    try {
+      if (!permisos) return {};
+      return typeof permisos === "string" ? JSON.parse(permisos) : permisos;
+    } catch { return {}; }
+  }, [permisos]);
+
+  const can = (module, action) => {
+    if (user?.rol_id === 2) return true; // Super Admin Bypass
+    return safePermisos?.[module]?.[action] === true;
+  };
+
+  const canRead = can("areas", "read");
+  const canCreate = can("areas", "create");
+  const canEdit = can("areas", "update");
+  const canDelete = can("areas", "delete");
+
+  // ----------------------------------------------------------------------
+  // 2. EFECTOS Y FETCHES
+  // ----------------------------------------------------------------------
   useEffect(() => {
-    cargarAreas();
-  }, []);
+    if (canRead) {
+      cargarAreas();
+    } else {
+      setLoading(false); // Detiene el loader si no tiene acceso
+    }
+  }, [canRead]);
 
   const cargarAreas = async () => {
     try {
-      const response = await api.get('/areas');
+      setLoading(true);
+      const response = await api.get('/catalogos/areas');
       setAreas(response.data);
     } catch (error) {
       console.error('Error cargando áreas:', error);
@@ -30,8 +55,14 @@ const AdminAreas = () => {
     }
   };
 
+  // ----------------------------------------------------------------------
+  // 3. MANEJADORES DE EVENTOS
+  // ----------------------------------------------------------------------
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (editingArea && !canEdit) return;
+    if (!editingArea && !canCreate) return;
+
     try {
       if (editingArea) {
         await api.put(`/areas/${editingArea.id}`, formData);
@@ -44,149 +75,175 @@ const AdminAreas = () => {
       setEditingArea(null);
     } catch (error) {
       console.error('Error guardando área:', error);
-      alert(error.response?.data?.message || 'Error al guardar el área');
+      alert(error.response?.data?.message || 'Error al procesar el área');
     }
   };
 
-  const handleDelete = async (id) => {
-    if (window.confirm('¿Eliminar esta área?')) {
-      try {
-        await api.delete(`/areas/${id}`);
-        await cargarAreas();
-      } catch (error) {
-        console.error('Error eliminando área:', error);
-        alert('No se puede eliminar un área con tickets asignados. Prueba desactivándola.');
-      }
+  const handleDelete = async (id, nombre) => {
+    if (!canDelete) return;
+    if (!window.confirm(`¿Eliminar permanentemente el área de "${nombre}"?`)) return;
+    
+    try {
+      await api.delete(`/areas/${id}`);
+      setAreas(prev => prev.filter(a => a.id !== id)); // Optimistic UI update
+    } catch (error) {
+      alert(error.response?.data?.message || 'No se puede eliminar un área con tickets o usuarios asignados.');
     }
   };
 
-  if (loading) return <div className="p-8 text-center text-gray-500 font-medium">Cargando módulos de áreas...</div>;
+  const openModal = (area = null) => {
+    if (area) {
+      if (!canEdit) return;
+      setEditingArea(area);
+      setFormData({ nombre: area.nombre, descripcion: area.descripcion || '', activo: area.activo ?? true });
+    } else {
+      if (!canCreate) return;
+      setEditingArea(null);
+      setFormData({ nombre: '', descripcion: '', activo: true });
+    }
+    setShowModal(true);
+  };
 
+  // ----------------------------------------------------------------------
+  // 4. ESTADOS DE CARGA Y BLOQUEO VISUAL
+  // ----------------------------------------------------------------------
+  if (loading && canRead) {
+    return <div className="p-12 text-center text-gray-500 animate-pulse font-bold">Validando permisos y cargando áreas...</div>;
+  }
+
+  if (!canRead) {
+    return (
+      <div className="p-6">
+        <div className="bg-red-50 border border-red-200 text-red-700 p-6 rounded-2xl shadow-sm text-center">
+          <p className="font-black text-lg uppercase tracking-tighter">Acceso Restringido</p>
+          <p className="text-sm opacity-80">No tienes privilegios para administrar las áreas del sistema.</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ----------------------------------------------------------------------
+  // 5. RENDER PRINCIPAL
+  // ----------------------------------------------------------------------
   return (
-    <div className="p-6">
-      {/* HEADER DEL COMPAÑERO */}
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-gray-800">Gestión de Áreas</h2>
-        <button
-          onClick={() => {
-            setEditingArea(null);
-            setFormData({ nombre: '', descripcion: '', activo: true });
-            setShowModal(true);
-          }}
-          className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg transition-colors shadow-sm"
-        >
-          + Nueva Área
-        </button>
+    <div className="p-6 bg-white rounded-2xl shadow-sm">
+      <div className="flex justify-between items-center mb-8">
+        <div>
+          <h2 className="text-2xl font-black text-gray-800 tracking-tight">Departamentos y Áreas</h2>
+          <p className="text-sm text-gray-500 italic">Estructura organizacional para la asignación de tickets</p>
+        </div>
+        {canCreate && (
+          <button
+            onClick={() => openModal()}
+            className="bg-amber-500 hover:bg-amber-600 text-white px-5 py-2.5 rounded-xl font-bold transition-all shadow-lg shadow-amber-200 active:scale-95"
+          >
+            + Nueva Área
+          </button>
+        )}
       </div>
 
-      {/* TABLA DEL COMPAÑERO */}
-      <div className="overflow-x-auto bg-white rounded-lg border shadow-sm">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-100">
+      <div className="overflow-x-auto border border-gray-100 rounded-2xl">
+        <table className="min-w-full divide-y divide-gray-100">
+          <thead className="bg-gray-50/50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nombre</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Descripción</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider text-center">Acciones</th>
+              <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-widest">ID</th>
+              <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-widest">Nombre</th>
+              <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-widest">Descripción</th>
+              <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-widest">Estado</th>
+              <th className="px-6 py-4 text-center text-xs font-bold text-gray-400 uppercase tracking-widest">Acciones</th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody className="divide-y divide-gray-50 bg-white">
             {areas.map((area) => (
-              <tr key={area.id} className="hover:bg-gray-50 transition-colors">
-                <td className="px-6 py-4 text-sm text-gray-500">{area.id}</td>
-                <td className="px-6 py-4 text-sm font-semibold text-gray-900">{area.nombre}</td>
-                <td className="px-6 py-4 text-sm text-gray-600">{area.descripcion || '-'}</td>
-                <td className="px-6 py-4 text-sm">
-                  <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                    area.activo ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                  }`}>
-                    {area.activo ? 'Activo' : 'Inactivo'}
-                  </span>
+              <tr key={area.id} className="hover:bg-amber-50/30 transition-colors">
+                <td className="px-6 py-4 text-sm font-bold text-gray-400">{area.id}</td>
+                <td className="px-6 py-4 text-sm font-black text-gray-800 uppercase">{area.nombre}</td>
+                <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate" title={area.descripcion}>{area.descripcion || <span className="italic text-gray-300">Sin descripción</span>}</td>
+                <td className="px-6 py-4">
+                  <div className="flex items-center gap-2">
+                    <div className={`h-2 w-2 rounded-full ${area.activo ? 'bg-green-500' : 'bg-red-400'}`}></div>
+                    <span className="text-xs font-bold text-gray-600">{area.activo ? 'Activo' : 'Inactivo'}</span>
+                  </div>
                 </td>
-                <td className="px-6 py-4 text-sm text-center font-medium space-x-4">
-                  <button
-                    onClick={() => {
-                      setEditingArea(area);
-                      setFormData({ 
-                        nombre: area.nombre, 
-                        descripcion: area.descripcion, 
-                        activo: area.activo 
-                      });
-                      setShowModal(true);
-                    }}
-                    className="text-blue-600 hover:text-blue-900"
-                  >
-                    Editar
-                  </button>
-                  <button
-                    onClick={() => handleDelete(area.id)}
-                    className="text-red-600 hover:text-red-900"
-                  >
-                    Eliminar
-                  </button>
+                <td className="px-6 py-4 text-center space-x-3">
+                  {canEdit && (
+                    <button onClick={() => openModal(area)} className="text-blue-500 hover:text-blue-700 font-bold text-sm underline transition-colors">
+                      Editar
+                    </button>
+                  )}
+                  {canDelete && (
+                    <button onClick={() => handleDelete(area.id, area.nombre)} className="text-red-400 hover:text-red-600 font-bold text-sm underline transition-colors">
+                      Eliminar
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}
+            {areas.length === 0 && !loading && (
+              <tr><td colSpan="5" className="p-8 text-center text-gray-400 italic">No hay áreas registradas en el sistema.</td></tr>
+            )}
           </tbody>
         </table>
       </div>
 
-      {/* MODAL DEL COMPAÑERO */}
+      {/* MODAL DE CREACIÓN/EDICIÓN */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md">
-            <h3 className="text-xl font-bold text-gray-800 mb-4 border-b pb-2">
-              {editingArea ? 'Editar Área' : 'Registrar Nueva Área'}
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl border border-white/20 animate-in zoom-in-95 duration-200">
+            <h3 className="text-2xl font-black text-gray-800 mb-6">
+              {editingArea ? 'Actualizar Área' : 'Nueva Área'}
             </h3>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            
+            <form onSubmit={handleSubmit} className="space-y-5">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
+                <label className="text-xs font-black text-gray-400 uppercase tracking-widest block mb-2">Nombre del Departamento</label>
                 <input
                   type="text"
-                  placeholder="Ej: Sistemas, Mantenimiento..."
+                  placeholder="Ej: Sistemas, Recursos Humanos..."
                   value={formData.nombre}
                   onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 outline-none"
+                  className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-amber-400 outline-none font-bold text-gray-700"
                   required
                 />
               </div>
+              
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
+                <label className="text-xs font-black text-gray-400 uppercase tracking-widest block mb-2">Descripción General</label>
                 <textarea
-                  placeholder="Detalles del departamento"
+                  placeholder="Funciones o detalles del área..."
                   value={formData.descripcion}
                   onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 outline-none"
+                  className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-amber-400 outline-none font-medium text-gray-600 resize-none custom-scrollbar"
                   rows="3"
                 />
               </div>
               
-              {/* Checkbox de activo añadido para control administrativo */}
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="activo"
-                  checked={formData.activo}
-                  onChange={(e) => setFormData({ ...formData, activo: e.target.checked })}
-                  className="w-4 h-4 accent-amber-500"
-                />
-                <label htmlFor="activo" className="text-sm text-gray-700 font-medium">Área activa</label>
-              </div>
+              {isEdit && (
+                <label className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-xl cursor-pointer transition-colors mt-2 border border-gray-100">
+                  <input
+                    type="checkbox"
+                    checked={formData.activo}
+                    onChange={(e) => setFormData({ ...formData, activo: e.target.checked })}
+                    className="w-5 h-5 accent-amber-500 rounded-lg"
+                  />
+                  <span className="text-sm font-bold text-gray-700 uppercase tracking-tighter">Área Operativa</span>
+                </label>
+              )}
 
-              <div className="flex justify-end gap-3 pt-4">
+              <div className="flex justify-end gap-3 pt-6 border-t border-gray-50 mt-8">
                 <button 
                   type="button" 
                   onClick={() => setShowModal(false)} 
-                  className="px-4 py-2 border rounded-lg text-gray-600 hover:bg-gray-50 transition-colors"
+                  className="px-6 py-3 text-gray-400 font-bold hover:text-gray-600 transition-colors uppercase text-xs"
                 >
                   Cancelar
                 </button>
                 <button 
                   type="submit" 
-                  className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-lg transition-all"
+                  disabled={editingArea ? !canEdit : !canCreate}
+                  className="px-8 py-3 bg-gray-800 text-white rounded-xl font-black shadow-lg shadow-gray-200 hover:bg-black transition-all active:scale-95 uppercase text-xs disabled:opacity-50"
                 >
-                  {editingArea ? 'Actualizar' : 'Crear Área'}
+                  {editingArea ? 'Guardar Cambios' : 'Registrar Área'}
                 </button>
               </div>
             </form>
@@ -195,6 +252,6 @@ const AdminAreas = () => {
       )}
     </div>
   );
-};
+}
 
-export default AdminAreas;
+// Eliminamos el export default para mantener la convención de Named Exports en componentes de admin

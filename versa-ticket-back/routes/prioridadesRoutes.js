@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 
 const sql = require("../config/db");
-const { verifyToken } = require("../middlewares/auth");
+const { verifyToken } = require("../middlewares/authMiddleware");
 
 // Capa de seguridad: Todas las rutas requieren un token valido
 router.use(verifyToken);

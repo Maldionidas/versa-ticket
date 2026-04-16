@@ -1,102 +1,140 @@
-<<<<<<< HEAD
-import { useEffect, useState } from "react"
-import { Plus, Pencil, Trash2 } from "lucide-react"
+import React, { useEffect, useState, useMemo } from "react";
+import { Plus, Pencil, Trash2, ShieldCheck } from "lucide-react";
+import api from '../api/axios';
 
-const modules = ["users", "areas", "tickets"]
-const actions = ["create", "read", "update", "delete"]
+const modules = ["users", "areas", "tickets", "categorias", "campos"];
+const actions = ["create", "read", "update", "delete"];
 
-export function AdminRoles() {
-    const [roles, setRoles] = useState([])
-    const [selectedRole, setSelectedRole] = useState(null)
-    const [isEdit, setIsEdit] = useState(false)
-    const [showModal, setShowModal] = useState(false)
+// Añadimos 'user' y 'permisos' a los props recibidos desde PanelAdmin
+export function AdminRoles({ user, permisos }) {
+    const [roles, setRoles] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [showModal, setShowModal] = useState(false);
+    const [selectedRole, setSelectedRole] = useState(null);
+    const [isEdit, setIsEdit] = useState(false);
 
-    //  fetch roles
+    const [formData, setFormData] = useState({
+        nombre: "",
+        descripcion: "",
+        permisos: {}
+    });
+
+    // ----------------------------------------------------------------------
+    // 1. LÓGICA DE PERMISOS BLINDADA
+    // ----------------------------------------------------------------------
+    const safePermisos = useMemo(() => {
+        try {
+            if (!permisos) return {};
+            return typeof permisos === "string" ? JSON.parse(permisos) : permisos;
+        } catch { return {}; }
+    }, [permisos]);
+
+    const can = (module, action) => {
+        if (user?.rol_id === 2) return true; // Super Admin Bypass
+        return safePermisos?.[module]?.[action] === true;
+    };
+
+    const canRead = can("roles", "read");
+    const canCreate = can("roles", "create");
+    const canEdit = can("roles", "update");
+    const canDelete = can("roles", "delete");
+
+    // ----------------------------------------------------------------------
+    // 2. EFECTOS Y FETCHES
+    // ----------------------------------------------------------------------
+    useEffect(() => {
+        if (canRead) {
+            fetchRoles();
+        } else {
+            setLoading(false); // Detiene loader si no hay acceso
+        }
+    }, [canRead]);
+
     const fetchRoles = async () => {
         try {
-            const res = await fetch("http://localhost:3000/api/roles")
-            const data = await res.json()
-
-            setRoles(data)
-
+            setLoading(true);
+            const res = await api.get("/roles");
+            setRoles(res.data);
         } catch (error) {
-            console.error("Error cargando roles:", error)
+            console.error("Error cargando roles:", error);
+        } finally {
+            setLoading(false);
         }
-    }
-    useEffect(() => {
-        fetchRoles()
-    }, [])
+    };
 
-    //  crear permisos base
     const createEmptyPermissions = () => {
-        const perms = {}
+        const perms = {};
         modules.forEach(m => {
-            perms[m] = {}
+            perms[m] = {};
             actions.forEach(a => {
-                perms[m][a] = false
-            })
-        })
-        return perms
-    }
+                perms[m][a] = false;
+            });
+        });
+        return perms;
+    };
 
-    // ➕ crear
+    // ----------------------------------------------------------------------
+    // 3. HANDLERS
+    // ----------------------------------------------------------------------
     const handleCreate = () => {
-        setSelectedRole({
+        if (!canCreate) return;
+        setFormData({
             nombre: "",
             descripcion: "",
             permisos: createEmptyPermissions()
-        })
-        setIsEdit(false)
-        setShowModal(true)
-    }
+        });
+        setIsEdit(false);
+        setShowModal(true);
+    };
 
-    //  editar
     const handleEdit = (role) => {
-        setSelectedRole({
-            ...role,
-            permisos: role.permisos || createEmptyPermissions()
-        })
-        setIsEdit(true)
-        setShowModal(true)
-    }
+        if (!canEdit) return;
+        const parsedPerms = typeof role.permisos === 'string' 
+            ? JSON.parse(role.permisos) 
+            : (role.permisos || createEmptyPermissions());
 
-    //  guardar
-    const handleSave = async () => {
+        setFormData({
+            nombre: role.nombre,
+            descripcion: role.descripcion,
+            permisos: parsedPerms
+        });
+        setSelectedRole(role);
+        setIsEdit(true);
+        setShowModal(true);
+    };
+
+    const handleSave = async (e) => {
+        e.preventDefault();
+        if (isEdit && !canEdit) return;
+        if (!isEdit && !canCreate) return;
+
         try {
-            const url = isEdit
-                ? `http://localhost:3000/api/roles/${selectedRole.id}`
-                : `http://localhost:3000/api/roles`
-
-            const method = isEdit ? "PUT" : "POST"
-
-            await fetch(url, {
-                method,
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(selectedRole)
-            })
-
-            await fetchRoles()
-            setShowModal(false)
-
+            if (isEdit) {
+                await api.put(`/roles/${selectedRole.id}`, formData);
+            } else {
+                await api.post("/roles", formData);
+            }
+            await fetchRoles();
+            setShowModal(false);
         } catch (error) {
-            console.error("Error:", error)
+            console.error("Error guardando rol:", error);
+            alert(error.response?.data?.message || "Error al procesar el rol");
         }
-    }
+    };
 
-    // eliminar
     const handleDelete = async (role) => {
-        if (!confirm(`Eliminar rol ${role.nombre}?`)) return
+        if (!canDelete) return;
+        if (!window.confirm(`¿Eliminar permanentemente el rol "${role.nombre}"?`)) return;
+        try {
+            await api.delete(`/roles/${role.id}`);
+            await fetchRoles();
+        } catch (error) {
+            alert("No se puede eliminar un rol con usuarios vinculados.");
+        }
+    };
 
-        await fetch(`http://localhost:3000/api/roles/${role.id}`, {
-            method: "DELETE"
-        })
-
-        fetchRoles()
-    }
-
-    //  toggle permiso
     const togglePermission = (module, action) => {
-        setSelectedRole(prev => ({
+        setFormData(prev => ({
             ...prev,
             permisos: {
                 ...prev.permisos,
@@ -105,269 +143,153 @@ export function AdminRoles() {
                     [action]: !prev.permisos[module][action]
                 }
             }
-        }))
+        }));
+    };
+
+    // ----------------------------------------------------------------------
+    // 4. ESTADOS DE CARGA Y SEGURIDAD VISUAL
+    // ----------------------------------------------------------------------
+    if (loading && canRead) return <div className="p-12 text-center font-bold text-gray-400 animate-pulse">Cargando privilegios del sistema...</div>;
+
+    if (!canRead) {
+        return (
+            <div className="p-6">
+                <div className="bg-red-50 border border-red-200 text-red-700 p-6 rounded-2xl shadow-sm text-center">
+                    <p className="font-black text-lg uppercase tracking-tighter">Acceso Restringido</p>
+                    <p className="text-sm opacity-80">No tienes privilegios para administrar los roles del sistema.</p>
+                </div>
+            </div>
+        );
     }
 
     return (
-        <div className="p-6">
-
+        <div className="p-6 bg-gray-50/50 min-h-full">
             {/* HEADER */}
-            <div className="flex justify-between mb-4">
-                <h1 className="text-2xl font-bold">Roles</h1>
+            <div className="flex justify-between items-center mb-8">
+                <div>
+                    <h2 className="text-2xl font-black text-gray-800 tracking-tight">Roles y Permisos</h2>
+                    <p className="text-sm text-gray-500">Define qué puede hacer cada tipo de usuario</p>
+                </div>
 
-                <button
-                    onClick={handleCreate}
-                    className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg"
-                >
-                    <Plus size={16} /> Nuevo Rol
-                </button>
+                {canCreate && (
+                    <button
+                        onClick={handleCreate}
+                        className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white px-5 py-2.5 rounded-xl font-bold transition-all shadow-lg shadow-amber-200 active:scale-95"
+                    >
+                        <Plus size={20} /> Nuevo Rol
+                    </button>
+                )}
             </div>
 
-            {/* TABLA */}
-            <table className="w-full border">
-                <thead className="bg-gray-100">
-                    <tr>
-                        <th>Nombre</th>
-                        <th>Descripción</th>
-                        <th>Acciones</th>
-                    </tr>
-                </thead>
+            {/* GRID DE TARJETAS */}
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {roles.map((role) => (
+                    <div key={role.id} className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm hover:shadow-xl transition-all group">
+                        <div className="flex justify-between items-start mb-4">
+                            <div className="p-3 bg-amber-50 rounded-xl text-amber-600 group-hover:bg-amber-500 group-hover:text-white transition-colors">
+                                <ShieldCheck size={24} />
+                            </div>
+                            <div className="flex gap-1">
+                                {canEdit && (
+                                    <button onClick={() => handleEdit(role)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors">
+                                        <Pencil size={18} />
+                                    </button>
+                                )}
+                                {canDelete && (
+                                    <button onClick={() => handleDelete(role)} className="p-2 text-red-400 hover:bg-red-50 rounded-lg transition-colors">
+                                        <Trash2 size={18} />
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                        <h3 className="font-black text-xl text-gray-800 mb-2 uppercase tracking-tighter">{role.nombre}</h3>
+                        <p className="text-gray-500 text-sm leading-relaxed mb-4">{role.descripcion || "Sin descripción asignada."}</p>
+                        <div className="pt-4 border-t border-gray-50">
+                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">ID del Rol: {role.id}</span>
+                        </div>
+                    </div>
+                ))}
+            </div>
 
-                <tbody>
-                    {roles.map(r => (
-                        <tr key={r.id} className="text-center border-t">
-                            <td>{r.nombre}</td>
-                            <td>{r.descripcion}</td>
-                            <td className="flex justify-center gap-2 py-2">
-                                <button onClick={() => handleEdit(r)}>
-                                    <Pencil size={16} />
-                                </button>
-                                <button onClick={() => handleDelete(r)}>
-                                    <Trash2 size={16} />
-                                </button>
-                            </td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
+            {showModal && (
+                <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex justify-center items-center z-50 p-4">
+                    <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl border border-white/20 overflow-hidden animate-in zoom-in-95 duration-200">
+                        <div className="p-8 border-b border-gray-100">
+                            <h2 className="text-2xl font-black text-gray-800">
+                                {isEdit ? `Configurando: ${formData.nombre}` : "Nuevo Perfil de Seguridad"}
+                            </h2>
+                        </div>
 
-            {/* MODAL */}
-            {showModal && selectedRole && (
-                <div className="fixed inset-0 bg-black/50 flex justify-center items-center">
-
-                    <div className="bg-white p-6 rounded-lg w-[600px]">
-
-                        <h2 className="text-lg font-bold mb-4">
-                            {isEdit ? "Editar Rol" : "Nuevo Rol"}
-                        </h2>
-
-                        {/* Nombre */}
-                        <input
-                            type="text"
-                            placeholder="Nombre"
-                            value={selectedRole.nombre}
-                            onChange={(e) =>
-                                setSelectedRole({ ...selectedRole, nombre: e.target.value })
-                            }
-                            className="border p-2 w-full mb-2"
-                        />
-
-                        {/* Descripción */}
-                        <textarea
-                            placeholder="Descripción"
-                            value={selectedRole.descripcion}
-                            onChange={(e) =>
-                                setSelectedRole({ ...selectedRole, descripcion: e.target.value })
-                            }
-                            className="border p-2 w-full mb-4"
-                        />
-
-                        {/* PERMISOS */}
-                        <h3 className="font-bold mb-2">Permisos</h3>
-
-                        <div className="space-y-3">
-                            {modules.map((module) => (
-                                <div key={module}>
-                                    <p className="font-semibold capitalize">{module}</p>
-
-                                    <div className="flex gap-4 mt-1">
-                                        {actions.map((action) => (
-                                            <label key={action} className="flex items-center gap-1 text-sm">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={selectedRole.permisos[module][action]}
-                                                    onChange={() => togglePermission(module, action)}
-                                                />
-                                                {action}
-                                            </label>
-                                        ))}
-                                    </div>
+                        <form onSubmit={handleSave} className="p-8 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                            <div className="grid md:grid-cols-2 gap-6 mb-8">
+                                <div className="space-y-2">
+                                    <label className="text-xs font-black text-gray-400 uppercase tracking-widest">Nombre del Rol</label>
+                                    <input
+                                        type="text"
+                                        required
+                                        placeholder="Ej: Supervisor de TI"
+                                        value={formData.nombre}
+                                        onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
+                                        className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-amber-400 outline-none font-bold"
+                                    />
                                 </div>
-                            ))}
-                        </div>
+                                <div className="space-y-2">
+                                    <label className="text-xs font-black text-gray-400 uppercase tracking-widest">Descripción Breve</label>
+                                    <input
+                                        type="text"
+                                        placeholder="Responsabilidades de este rol..."
+                                        value={formData.descripcion}
+                                        onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
+                                        className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-amber-400 outline-none font-medium"
+                                    />
+                                </div>
+                            </div>
 
-                        {/* BOTONES */}
-                        <div className="flex justify-end gap-2 mt-4">
-                            <button
-                                onClick={() => setShowModal(false)}
-                                className="bg-gray-300 px-3 py-1 rounded"
-                            >
-                                Cancelar
-                            </button>
+                            <h3 className="text-sm font-black text-gray-800 mb-4 border-l-4 border-amber-500 pl-3 uppercase">Matriz de Privilegios</h3>
+                            
+                            <div className="space-y-4">
+                                {modules.map((module) => (
+                                    <div key={module} className="bg-gray-50 p-4 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                        <p className="font-bold text-gray-700 capitalize w-24">{module}</p>
+                                        <div className="flex flex-wrap gap-6">
+                                            {actions.map((action) => (
+                                                <label key={action} className="flex items-center gap-2 cursor-pointer group">
+                                                    <input
+                                                        type="checkbox"
+                                                        className="w-5 h-5 accent-amber-500 rounded-lg"
+                                                        checked={formData.permisos[module]?.[action] || false}
+                                                        onChange={() => togglePermission(module, action)}
+                                                    />
+                                                    <span className="text-xs font-bold text-gray-500 group-hover:text-amber-600 transition-colors uppercase">{action}</span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
 
-                            <button
-                                onClick={handleSave}
-                                className="bg-blue-500 text-white px-3 py-1 rounded"
-                            >
-                                Guardar
-                            </button>
-                        </div>
-
+                            <div className="flex justify-end gap-3 mt-10 pt-6 border-t border-gray-100">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowModal(false)}
+                                    className="px-6 py-3 text-gray-400 font-bold hover:text-gray-600 transition-colors uppercase text-xs"
+                                >
+                                    Descartar
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={isEdit ? !canEdit : !canCreate}
+                                    className="px-10 py-3 bg-gray-800 text-white rounded-xl font-black shadow-lg shadow-gray-200 hover:bg-black transition-all active:scale-95 uppercase text-xs disabled:opacity-50"
+                                >
+                                    {isEdit ? "Actualizar Rol" : "Guardar Cambios"}
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             )}
         </div>
-    )
+    );
 }
-=======
-import React, { useState, useEffect } from 'react';
-import api from '../api/axios';
-
-const AdminRoles = () => {
-  const [roles, setRoles] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [editingRole, setEditingRole] = useState(null);
-  const [formData, setFormData] = useState({ nombre: '', descripcion: '' });
-
-  useEffect(() => {
-    cargarRoles();
-  }, []);
-
-  const cargarRoles = async () => {
-    try {
-      const response = await api.get('/roles');
-      setRoles(response.data);
-    } catch (error) {
-      console.error('Error cargando roles:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      if (editingRole) {
-        await api.put(`/roles/${editingRole.id}`, formData);
-      } else {
-        await api.post('/roles', formData);
-      }
-      await cargarRoles();
-      setShowModal(false);
-      setFormData({ nombre: '', descripcion: '' });
-      setEditingRole(null);
-    } catch (error) {
-      console.error('Error guardando rol:', error);
-      alert('Error al guardar el rol');
-    }
-  };
-
-  const handleDelete = async (id) => {
-    if (window.confirm('¿Eliminar este rol?')) {
-      try {
-        await api.delete(`/roles/${id}`);
-        await cargarRoles();
-      } catch (error) {
-        console.error('Error eliminando rol:', error);
-        alert('No se puede eliminar un rol con usuarios asignados');
-      }
-    }
-  };
-
-  if (loading) return <div className="p-8 text-center">Cargando roles...</div>;
-
-  return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-gray-800">Gestión de Roles</h2>
-        <button
-          onClick={() => {
-            setEditingRole(null);
-            setFormData({ nombre: '', descripcion: '' });
-            setShowModal(true);
-          }}
-          className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg"
-        >
-          + Nuevo Rol
-        </button>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {roles.map((role) => (
-          <div key={role.id} className="border rounded-lg p-4 hover:shadow-lg transition">
-            <h3 className="font-bold text-lg text-gray-800">{role.nombre}</h3>
-            <p className="text-gray-600 text-sm mt-1">{role.descripcion}</p>
-            <div className="flex justify-end gap-2 mt-4">
-              <button
-                onClick={() => {
-                  setEditingRole(role);
-                  setFormData({ nombre: role.nombre, descripcion: role.descripcion });
-                  setShowModal(true);
-                }}
-                className="text-blue-600 hover:text-blue-800 text-sm"
-              >
-                Editar
-              </button>
-              <button
-                onClick={() => handleDelete(role.id)}
-                className="text-red-600 hover:text-red-800 text-sm"
-              >
-                Eliminar
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Modal igual que en AdminUsers */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-96">
-            <h3 className="text-xl font-bold mb-4">
-              {editingRole ? 'Editar Rol' : 'Nuevo Rol'}
-            </h3>
-            <form onSubmit={handleSubmit}>
-              <input
-                type="text"
-                placeholder="Nombre del rol"
-                value={formData.nombre}
-                onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                className="w-full px-3 py-2 border rounded-lg mb-3"
-                required
-              />
-              <textarea
-                placeholder="Descripción"
-                value={formData.descripcion}
-                onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
-                className="w-full px-3 py-2 border rounded-lg mb-3"
-                rows="3"
-              />
-              <div className="flex justify-end gap-2">
-                <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 border rounded-lg">
-                  Cancelar
-                </button>
-                <button type="submit" className="px-4 py-2 bg-amber-500 text-white rounded-lg">
-                  {editingRole ? 'Actualizar' : 'Crear'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
 
 export default AdminRoles;
->>>>>>> origin/Login_CV2

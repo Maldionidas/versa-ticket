@@ -1,608 +1,186 @@
-<<<<<<< HEAD
-import { useEffect, useState } from "react"
-
-// Componente para administración de usuarios (CRUD básico)
-// - Lista usuarios
-// - Edita usuario
-// - Elimina usuario
-// - Crea usuario
-// - Muestra confirmaciones de cambios
-export function AdminUsers({ user, permisos }) {
-    // Estado local del componente
-    const [users, setUsers] = useState([]) // lista de usuarios obtenidos desde backend
-    const [selectedUser, setSelectedUser] = useState(null) // usuario en edición/creación
-    const [originalUser, setOriginalUser] = useState(null) // copia del usuario original para detectar cambios
-    const [showModal, setShowModal] = useState(false) // controla visibilidad modal de formulario
-    const [showConfirm, setShowConfirm] = useState(false) // controla visibilidad modal de confirmación
-    const [roles, setRoles] = useState([]) // catálogo de roles
-    const [areas, setAreas] = useState([]) // catálogo de áreas
-    const can = (permisos, module, action) => {
-        return permisos?.[module]?.[action] === true
-    }
-    const canCreate = can(permisos, "users", "create")
-    const canEdit = can(permisos, "users", "update")
-    const canDelete = can(permisos, "users", "delete")
-    const canRead = can(permisos, "users", "read")
-
-    // Flag derivado: true si estamos editando un usuario existente
-    const isEdit = !!originalUser
-
-    // Inicia edición de usuario: copia valores para poder comparar cambios
-    const handleEdit = (user) => {
-        if (!canEdit) return
-        setSelectedUser({ ...user })
-        setOriginalUser({ ...user })
-        setShowModal(true)
-    }
-
-    // Elimina usuario vía API con confirmación de usuario
-    const handleDelete = async (user) => {
-        if (!canDelete) return
-        if (!window.confirm(`¿Eliminar a ${user.nombre}?`)) return
-
-        try {
-            await fetch(`http://localhost:3000/api/users/${user.id}`, {
-                method: "DELETE",
-            })
-
-            // Refrescar lista en UI local sin recargar página
-            setUsers((prev) => prev.filter(u => u.id !== user.id))
-
-        } catch (error) {
-            console.error("Error eliminando:", error)
-        }
-    }
-    // Carga usuarios desde API de administración
-    const fetchUsers = async () => {
-        const res = await fetch("http://localhost:3000/api/users/admin")
-        const data = await res.json()
-        setUsers(data)
-    }
-
-    // Envía cambios de un usuario editado al servidor
-    const handleUpdate = async () => {
-        try {
-            await fetch(
-                `http://localhost:3000/api/users/${selectedUser.id}`,
-                {
-                    method: "PUT",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({
-                        nombre: selectedUser.nombre,
-                        apellido: selectedUser.apellido,
-                        rol_id: selectedUser.rol_id,
-                        area_id: selectedUser.area_id
-                    }),
-                }
-            )
-
-            // Refresca datos en tabla luego de update
-            await fetchUsers()
-
-            // Limpia el usuario seleccionado
-            setSelectedUser(null)
-
-        } catch (error) {
-            console.error("Error actualizando:", error)
-        }
-    }
-
-    // Maneja creación y edición en un solo flujo con confirmación
-    const handleSave = async () => {
-        if (isEdit && !canEdit) return
-        if (!isEdit && !canCreate) return
-
-        try {
-            // En modo edición se actualiza, si no se crea nuevo
-            const url = isEdit
-                ? `http://localhost:3000/api/users/${selectedUser.id}`
-                : `http://localhost:3000/api/users/crear`
-
-            const method = isEdit ? "PUT" : "POST"
-
-            // Nota: route 'crear' para PUT/POST es poco consistente; revisarlo si hay cambios API
-            const res = await fetch(url, {
-                method,
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify(selectedUser),
-            })
-
-            const data = await res.json() // se usa para depuración futura
-
-            await fetchUsers() // recarga datos para reflejar cambios
-
-            // cierra modales y limpia selección
-            setShowConfirm(false)
-            setShowModal(false)
-            setSelectedUser(null)
-
-        } catch (error) {
-            console.error("Error guardando:", error)
-        }
-    }
-
-    // Compara valores originales vs modificados y devuelve resumen de cambios
-    // usado en modal de confirmación para que admin vea qué modificó
-    const getChanges = () => {
-        if (!originalUser || !selectedUser) return []
-
-        const changes = []
-
-        if (originalUser.nombre !== selectedUser.nombre) {
-            changes.push({
-                field: "Nombre",
-                before: originalUser.nombre,
-                after: selectedUser.nombre
-            })
-        }
-
-        if (originalUser.apellido !== selectedUser.apellido) {
-            changes.push({
-                field: "Apellido",
-                before: originalUser.apellido,
-                after: selectedUser.apellido
-            })
-        }
-
-        if (originalUser.rol_id !== selectedUser.rol_id) {
-            const before = roles.find(r => r.id === originalUser.rol_id)?.nombre
-            const after = roles.find(r => r.id === selectedUser.rol_id)?.nombre
-
-            changes.push({
-                field: "Rol",
-                before,
-                after
-            })
-        }
-
-        if (originalUser.area_id !== selectedUser.area_id) {
-            const before = areas.find(a => a.id === originalUser.area_id)?.nombre
-            const after = areas.find(a => a.id === selectedUser.area_id)?.nombre
-
-            changes.push({
-                field: "Área",
-                before,
-                after
-            })
-        }
-
-        return changes
-    }
-
-    // Formato de fecha para presentación en UI con locale mexicano
-    const formatDate = (date) => {
-        return new Date(date).toLocaleString("es-MX", {
-            day: "2-digit",
-            month: "2-digit",
-            year: "numeric"
-        })
-    }
-
-    // Este efecto es solo para depuración (puede eliminarse en producción)
-    // Muestra en consola el usuario que se está editando/creando.
-    useEffect(() => {
-        if (selectedUser) {
-            console.log(selectedUser)
-            console.log(selectedUser.id)
-        }
-    }, [selectedUser])
-
-    // Carga inicial: obtiene usuarios y catálogos para selects
-    useEffect(() => {
-        const fetchUsers = async () => {
-            try {
-                const res = await fetch("http://localhost:3000/api/users/admin")
-                const data = await res.json()
-
-                setUsers(data)
-
-            } catch (error) {
-                console.error("Error cargando usuarios:", error)
-            }
-        }
-        const fetchCatalogs = async () => {
-            try {
-                const resRoles = await fetch("http://localhost:3000/api/catalogos/roles")
-                const dataRoles = await resRoles.json()
-
-                const resAreas = await fetch("http://localhost:3000/api/catalogos/areas")
-                const dataAreas = await resAreas.json()
-                setRoles(dataRoles)
-                setAreas(dataAreas)
-
-            } catch (error) {
-                console.error("Error cargando catálogos:", error)
-            }
-        }
-
-
-        fetchCatalogs()
-        fetchUsers()
-    }, [])
-    if (!canRead) {
-        return (
-            <div className="p-6">
-                <div className="bg-red-100 text-red-700 p-4 rounded">
-                    No tienes permiso para ver usuarios
-                </div>
-            </div>
-        )
-    }
-
-    // Render del componente completo
-    return (
-        <div className="p-6">
-            <h1 className="text-2xl font-bold mb-4">Usuarios</h1>
-
-            {/* Botón de creación de nuevo usuario */}
-            {canCreate && (
-                <button
-                    onClick={() => {
-                        setSelectedUser({
-                            nombre: "",
-                            apellido: "",
-                            email: "",
-                            password: "",
-                            rol_id: "",
-                            area_id: ""
-                        })
-                        setOriginalUser(null)
-                        setShowModal(true)
-                    }}
-                    className="bg-accent text-accent-foreground px-4 py-2 rounded-lg"
-                >
-                    + Agregar Usuario
-                </button>
-            )}
-
-            <div className="overflow-x-auto">
-                <table className="min-w-full border border-gray-200">
-                    <thead className="bg-gray-100">
-                        <tr>
-                            <th className="p-2 border">ID</th>
-                            <th className="p-2 border">Nombre</th>
-                            <th className="p-2 border">Email</th>
-                            <th className="p-2 border">Rol</th>
-                            <th className="p-2 border">Área</th>
-                            <th className="p-2 border">Activo</th>
-                            <th className="p-2 border">Fecha de registro</th>
-                            <th className="p-2 border">Acciones</th>
-                        </tr>
-                    </thead>
-
-                    <tbody>
-                        {users.map((u) => (
-                            <tr key={u.id} className="text-center">
-                                <td className="p-2 border">{u.id}</td>
-                                <td className="p-2 border">
-                                    {u.nombre} {u.apellido}
-                                </td>
-                                <td className="p-2 border">{u.email}</td>
-                                <td className="p-2 border">{u.rol}</td>
-                                <td className="p-2 border">{u.area || "-"}</td>
-                                <td className="p-2 border">
-                                    {u.activo ? "Sí" : "No"}
-                                </td>
-                                <td className="p-2 border">{formatDate(u.fecha_registro)}</td>
-                                <td className="p-2 border">
-                                    <div className="flex justify-center gap-2">
-                                        {canEdit && (
-                                            <button onClick={() => handleEdit(u)}
-                                                className="px-2 py-1 bg-blue-500 text-white rounded">
-                                                Editar
-                                            </button>
-                                        )}
-
-                                        {canDelete && (
-                                            <button onClick={() => handleDelete(u)}
-                                                className="px-2 py-1 bg-red-500 text-white rounded">
-                                                Eliminar
-                                            </button>
-                                        )}
-                                    </div>
-                                </td>
-                            </tr>
-                        ))}
-
-                    </tbody>
-                </table>
-            </div>
-            {showModal && selectedUser && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center">
-                    <div className="bg-white p-6 rounded-lg w-96">
-
-                        <h2 className="text-lg font-bold mb-4">Editar Usuario</h2>
-
-                        <input
-                            type="text"
-                            value={selectedUser.nombre}
-                            onChange={(e) =>
-                                setSelectedUser({ ...selectedUser, nombre: e.target.value })
-                            }
-                            className="border p-2 w-full mb-2"
-                            placeholder="Nombre"
-                        />
-
-                        <input
-                            type="text"
-                            value={selectedUser.apellido}
-                            onChange={(e) =>
-                                setSelectedUser({ ...selectedUser, apellido: e.target.value })
-                            }
-                            className="border p-2 w-full mb-4"
-                            placeholder="Apellido"
-                        />
-                        <select
-                            value={selectedUser.rol_id || ""}
-                            onChange={(e) =>
-                                setSelectedUser({ ...selectedUser, rol_id: Number(e.target.value) })
-                            }
-                            className="border p-2 w-full mb-2"
-                        >
-                            <option value="">Selecciona rol</option>
-                            {roles.map((r) => (
-                                <option key={r.id} value={r.id}>
-                                    {r.nombre}
-                                </option>
-                            ))}
-                        </select>
-                        <select
-                            value={selectedUser.area_id || ""}
-                            onChange={(e) =>
-                                setSelectedUser({ ...selectedUser, area_id: Number(e.target.value) })
-                            }
-                            className="border p-2 w-full mb-2"
-                        >
-                            <option value="">Selecciona área</option>
-                            {areas.map((a) => (
-                                <option key={a.id} value={a.id}>
-                                    {a.nombre}
-                                </option>
-                            ))}
-                        </select>
-                        <input
-                            type="email"
-                            value={selectedUser.email || ""}
-                            onChange={(e) =>
-                                setSelectedUser({ ...selectedUser, email: e.target.value })
-                            }
-                            className="border p-2 w-full mb-2"
-                            placeholder="Email"
-                        />
-
-                        {!isEdit && (
-                            <input
-                                type="password"
-                                value={selectedUser.password || ""}
-                                onChange={(e) =>
-                                    setSelectedUser({ ...selectedUser, password: e.target.value })
-                                }
-                                className="border p-2 w-full mb-2"
-                                placeholder="Password"
-                            />
-                        )}
-
-                        <div className="flex justify-end gap-2">
-                            <button
-                                onClick={() => setShowModal(false)}
-                                className="bg-gray-300 px-3 py-1 rounded"
-                            >
-                                Cancelar
-                            </button>
-
-                            <button
-                                onClick={() => setShowConfirm(true)}
-                                className="bg-green-500 text-white px-3 py-1 rounded"
-                            >
-                                {isEdit ? "Actualizar" : "Crear"}
-                            </button>
-                        </div>
-
-                    </div>
-                </div>
-            )}
-            {showConfirm && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center">
-                    <div className="bg-white p-6 rounded-lg w-96">
-
-                        <h2 className="text-lg font-bold mb-4">Confirmar cambios</h2>
-
-                        {isEdit && (getChanges().length === 0 ? (
-                            <p>No hay cambios</p>
-                        ) : (
-                            <ul className="mb-4">
-                                {getChanges().map((c, i) => (
-                                    <li key={i} className="text-sm">
-                                        <strong>{c.field}:</strong> {c.before} → {c.after}
-                                    </li>
-                                ))}
-                            </ul>
-                        ))}
-                        {!isEdit && (
-                            <p className="text-sm text-muted-foreground mb-4">
-                                Se creará un nuevo usuario con los datos proporcionados.
-                            </p>
-                        )}
-
-                        <div className="flex justify-end gap-2">
-                            <button
-                                onClick={() => setShowConfirm(false)}
-                                className="bg-gray-300 px-3 py-1 rounded">
-                                Cancelar
-                            </button>
-
-                            <button
-                                onClick={handleSave}
-                                disabled={isEdit ? !canEdit : !canCreate}
-                                className="bg-blue-500 text-white px-3 py-1 rounded">
-                                Confirmar
-                            </button>
-                        </div>
-
-                    </div>
-                </div>
-            )}
-        </div>
-
-    )
-
-}
-=======
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 
-const AdminUsers = () => {
+export function AdminUsers({ user: propUser, permisos }) {
   const { user: currentUser } = useAuth();
+  
+  // Estado de datos
   const [users, setUsers] = useState([]);
+  const [roles, setRoles] = useState([]);
+  const [areas, setAreas] = useState([]);
+  
+  // UI States
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [editingUser, setEditingUser] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  
+  // Form States
+  const [editingUser, setEditingUser] = useState(null);
+  const [originalUser, setOriginalUser] = useState(null);
   const [formData, setFormData] = useState({
     nombre: '',
+    apellido: '',
     email: '',
+    password: '',
     rol_id: 1,
+    area_id: '',
     activo: true
   });
 
-  // Cargar usuarios
-  useEffect(() => {
-    cargarUsuarios();
-  }, []);
+  // Lógica de permisos
+  const can = (permisos, module, action) => permisos?.[module]?.[action] === true;
+  const canCreate = can(permisos, "users", "create");
+  const canEdit = can(permisos, "users", "update");
+  const canDelete = can(permisos, "users", "delete");
+  const canRead = can(permisos, "users", "read");
 
-  const cargarUsuarios = async () => {
+  useEffect(() => {
+    if (canRead) {
+      cargarDatosIniciales();
+    }
+  }, [canRead]);
+
+  const cargarDatosIniciales = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/users');
-      setUsers(response.data);
+      const [resUsers, resRoles, resAreas] = await Promise.all([
+        api.get('/users'),
+        api.get('/catalogos/roles'),
+        api.get('/catalogos/areas')
+      ]);
+      setUsers(resUsers.data);
+      setRoles(resRoles.data);
+      setAreas(resAreas.data);
       setError(null);
     } catch (err) {
-      console.error('Error cargando usuarios:', err);
-      setError('No se pudieron cargar los usuarios');
+      console.error('Error cargando datos:', err);
+      setError('No se pudieron cargar los datos de administración');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCreate = async (e) => {
-    e.preventDefault();
-    try {
-      await api.post('/users', formData);
-      await cargarUsuarios();
-      setShowModal(false);
-      setFormData({ nombre: '', email: '', rol_id: 1, activo: true });
-    } catch (err) {
-      console.error('Error creando usuario:', err);
-      alert('Error al crear usuario');
-    }
-  };
-
-  const handleUpdate = async (e) => {
-    e.preventDefault();
-    try {
-      await api.put(`/users/${editingUser.id}`, formData);
-      await cargarUsuarios();
-      setShowModal(false);
+  const openModal = (user = null) => {
+    if (user) {
+      setEditingUser(user);
+      setOriginalUser(user);
+      setFormData({
+        nombre: user.nombre,
+        apellido: user.apellido || '',
+        email: user.email,
+        rol_id: user.rol_id,
+        area_id: user.area_id || '',
+        activo: user.activo,
+        password: ''
+      });
+    } else {
       setEditingUser(null);
-    } catch (err) {
-      console.error('Error actualizando usuario:', err);
-      alert('Error al actualizar usuario');
+      setOriginalUser(null);
+      setFormData({
+        nombre: '',
+        apellido: '',
+        email: '',
+        password: '',
+        rol_id: 1,
+        area_id: '',
+        activo: true
+      });
     }
-  };
-
-  const handleDelete = async (userId) => {
-    if (window.confirm('¿Eliminar este usuario permanentemente?')) {
-      try {
-        await api.delete(`/users/${userId}`);
-        await cargarUsuarios();
-      } catch (err) {
-        console.error('Error eliminando usuario:', err);
-        alert('Error al eliminar usuario');
-      }
-    }
-  };
-
-  const openEditModal = (user) => {
-    setEditingUser(user);
-    setFormData({
-      nombre: user.nombre,
-      email: user.email,
-      rol_id: user.rol_id,
-      activo: user.activo
-    });
     setShowModal(true);
   };
 
-  if (loading) return <div className="p-8 text-center">Cargando usuarios...</div>;
-  if (error) return <div className="p-8 text-center text-red-500">{error}</div>;
+  // Tu lógica de comparación de cambios
+  const getChanges = () => {
+    if (!originalUser) return [];
+    const changes = [];
+    if (originalUser.nombre !== formData.nombre) changes.push({ field: "Nombre", before: originalUser.nombre, after: formData.nombre });
+    if (originalUser.apellido !== formData.apellido) changes.push({ field: "Apellido", before: originalUser.apellido, after: formData.apellido });
+    if (originalUser.rol_id !== formData.rol_id) {
+      changes.push({ 
+        field: "Rol", 
+        before: roles.find(r => r.id === originalUser.rol_id)?.nombre, 
+        after: roles.find(r => r.id === formData.rol_id)?.nombre 
+      });
+    }
+    return changes;
+  };
+
+  const handleSave = async () => {
+    try {
+      if (editingUser) {
+        await api.put(`/users/${editingUser.id}`, formData);
+      } else {
+        await api.post('/users', formData);
+      }
+      await cargarDatosIniciales();
+      setShowConfirm(false);
+      setShowModal(false);
+    } catch (err) {
+      alert(err.response?.data?.message || 'Error al procesar la solicitud');
+    }
+  };
+
+  const handleDelete = async (userId, nombre) => {
+    if (!window.confirm(`¿Eliminar permanentemente a ${nombre}?`)) return;
+    try {
+      await api.delete(`/users/${userId}`);
+      setUsers(prev => prev.filter(u => u.id !== userId));
+    } catch (err) {
+      alert('Error al eliminar usuario');
+    }
+  };
+
+  if (!canRead) return <div className="p-8 text-center bg-red-50 text-red-600 rounded-lg m-6">No tienes permiso para ver este módulo.</div>;
+  if (loading) return <div className="p-8 text-center text-gray-500 animate-pulse">Cargando consola de administración...</div>;
 
   return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-gray-800">Gestión de Usuarios</h2>
-        <button
-          onClick={() => {
-            setEditingUser(null);
-            setFormData({ nombre: '', email: '', rol_id: 1, activo: true });
-            setShowModal(true);
-          }}
-          className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg transition"
-        >
-          + Nuevo Usuario
-        </button>
+    <div className="p-6 bg-white rounded-2xl shadow-sm">
+      <div className="flex justify-between items-center mb-8">
+        <div>
+          <h2 className="text-2xl font-black text-gray-800 tracking-tight">Usuarios</h2>
+          <p className="text-sm text-gray-500 italic">Control de acceso y personal de VersaTicket</p>
+        </div>
+        {canCreate && (
+          <button onClick={() => openModal()} className="bg-amber-500 hover:bg-amber-600 text-white px-5 py-2.5 rounded-xl font-bold transition-all shadow-lg shadow-amber-200 active:scale-95">
+            + Nuevo Usuario
+          </button>
+        )}
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="min-w-full bg-white border rounded-lg">
-          <thead className="bg-gray-100">
+      <div className="overflow-x-auto border border-gray-100 rounded-2xl">
+        <table className="min-w-full divide-y divide-gray-100">
+          <thead className="bg-gray-50/50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nombre</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rol</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
+              <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-widest">Usuario</th>
+              <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-widest">Rol</th>
+              <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-widest">Área</th>
+              <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-widest">Estado</th>
+              <th className="px-6 py-4 text-center text-xs font-bold text-gray-400 uppercase tracking-widest">Acciones</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200">
-            {users.map((user) => (
-              <tr key={user.id} className="hover:bg-gray-50">
-                <td className="px-6 py-4 text-sm">{user.id}</td>
-                <td className="px-6 py-4 text-sm font-medium">{user.nombre}</td>
-                <td className="px-6 py-4 text-sm">{user.email}</td>
-                <td className="px-6 py-4 text-sm">
-                  <span className={`px-2 py-1 rounded-full text-xs ${
-                    user.rol_id === 2 ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
-                  }`}>
-                    {user.rol_id === 2 ? 'Admin' : 'Usuario'}
-                  </span>
+          <tbody className="divide-y divide-gray-50">
+            {users.map((u) => (
+              <tr key={u.id} className="hover:bg-amber-50/30 transition-colors">
+                <td className="px-6 py-4">
+                  <div className="font-bold text-gray-800">{u.nombre} {u.apellido}</div>
+                  <div className="text-xs text-gray-400">{u.email}</div>
                 </td>
-                <td className="px-6 py-4 text-sm">
-                  <span className={`px-2 py-1 rounded-full text-xs ${
-                    user.activo ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                  }`}>
-                    {user.activo ? 'Activo' : 'Inactivo'}
-                  </span>
+                <td className="px-6 py-4 text-sm font-medium">
+                   <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter ${u.rol_id === 2 ? 'bg-purple-100 text-purple-600' : 'bg-blue-100 text-blue-600'}`}>
+                    {roles.find(r => r.id === u.rol_id)?.nombre || 'Usuario'}
+                   </span>
                 </td>
-                <td className="px-6 py-4 text-sm space-x-2">
-                  <button
-                    onClick={() => openEditModal(user)}
-                    className="text-blue-600 hover:text-blue-800"
-                  >
-                    Editar
-                  </button>
-                  {currentUser?.id !== user.id && (
-                    <button
-                      onClick={() => handleDelete(user.id)}
-                      className="text-red-600 hover:text-red-800"
-                    >
-                      Eliminar
-                    </button>
+                <td className="px-6 py-4 text-sm text-gray-500">{areas.find(a => a.id === u.area_id)?.nombre || '-'}</td>
+                <td className="px-6 py-4">
+                  <div className={`h-2 w-2 rounded-full ${u.activo ? 'bg-green-500' : 'bg-red-400'} inline-block mr-2`}></div>
+                  <span className="text-xs font-bold text-gray-600">{u.activo ? 'Activo' : 'Inactivo'}</span>
+                </td>
+                <td className="px-6 py-4 text-center space-x-2">
+                  {canEdit && <button onClick={() => openModal(u)} className="text-blue-500 hover:bg-blue-50 p-2 rounded-lg transition-colors font-bold text-sm underline">Editar</button>}
+                  {canDelete && currentUser?.id !== u.id && (
+                    <button onClick={() => handleDelete(u.id, u.nombre)} className="text-red-400 hover:text-red-600 font-bold text-sm underline">Eliminar</button>
                   )}
                 </td>
               </tr>
@@ -611,70 +189,62 @@ const AdminUsers = () => {
         </table>
       </div>
 
-      {/* Modal */}
+      {/* Modal de Formulario */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-96 max-w-md">
-            <h3 className="text-xl font-bold mb-4">
-              {editingUser ? 'Editar Usuario' : 'Nuevo Usuario'}
-            </h3>
-            <form onSubmit={editingUser ? handleUpdate : handleCreate}>
-              <div className="space-y-4">
-                <input
-                  type="text"
-                  placeholder="Nombre"
-                  value={formData.nombre}
-                  onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg"
-                  required
-                />
-                <input
-                  type="email"
-                  placeholder="Email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg"
-                  required
-                />
-                <select
-                  value={formData.rol_id}
-                  onChange={(e) => setFormData({ ...formData, rol_id: parseInt(e.target.value) })}
-                  className="w-full px-3 py-2 border rounded-lg"
-                >
-                  <option value={1}>Usuario</option>
-                  <option value={2}>Administrador</option>
-                </select>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={formData.activo}
-                    onChange={(e) => setFormData({ ...formData, activo: e.target.checked })}
-                  />
-                  Activo
-                </label>
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl border border-white/20 animate-in zoom-in-95 duration-200">
+            <h3 className="text-2xl font-black text-gray-800 mb-6">{editingUser ? 'Editar Perfil' : 'Registro de Usuario'}</h3>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <input type="text" placeholder="Nombre" value={formData.nombre} onChange={(e) => setFormData({...formData, nombre: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-amber-400 outline-none font-medium" />
+                <input type="text" placeholder="Apellido" value={formData.apellido} onChange={(e) => setFormData({...formData, apellido: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-amber-400 outline-none font-medium" />
               </div>
-              <div className="flex justify-end gap-2 mt-6">
-                <button
-                  type="button"
-                  onClick={() => setShowModal(false)}
-                  className="px-4 py-2 border rounded-lg hover:bg-gray-50"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600"
-                >
-                  {editingUser ? 'Actualizar' : 'Crear'}
-                </button>
-              </div>
-            </form>
+              <input type="email" placeholder="Email institucional" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-amber-400 outline-none font-medium" />
+              {!editingUser && <input type="password" placeholder="Contraseña temporal" value={formData.password} onChange={(e) => setFormData({...formData, password: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-amber-400 outline-none font-medium" />}
+              <select value={formData.rol_id} onChange={(e) => setFormData({...formData, rol_id: parseInt(e.target.value)})} className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-amber-400 outline-none font-bold text-gray-600 appearance-none">
+                {roles.map(r => <option key={r.id} value={r.id}>{r.nombre}</option>)}
+              </select>
+              <select value={formData.area_id} onChange={(e) => setFormData({...formData, area_id: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-amber-400 outline-none font-bold text-gray-600 appearance-none">
+                <option value="">Sin área específica</option>
+                {areas.map(a => <option key={a.id} value={a.id}>{a.nombre}</option>)}
+              </select>
+              <label className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-xl cursor-pointer transition-colors">
+                <input type="checkbox" checked={formData.activo} onChange={(e) => setFormData({...formData, activo: e.target.checked})} className="w-5 h-5 accent-amber-500 rounded-lg" />
+                <span className="text-sm font-bold text-gray-700 uppercase tracking-tighter">Cuenta Habilitada</span>
+              </label>
+            </div>
+            <div className="flex justify-end gap-3 mt-8 pt-6 border-t border-gray-50">
+              <button onClick={() => setShowModal(false)} className="px-6 py-3 text-gray-400 font-bold hover:text-gray-600 transition-colors uppercase text-xs">Cancelar</button>
+              <button onClick={() => editingUser ? setShowConfirm(true) : handleSave()} className="px-8 py-3 bg-gray-800 text-white rounded-xl font-black shadow-lg shadow-gray-200 hover:bg-black transition-all active:scale-95 uppercase text-xs">
+                {editingUser ? 'Actualizar' : 'Registrar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tu Modal de Confirmación de Cambios */}
+      {showConfirm && (
+        <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-md flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-3xl p-8 w-full max-w-sm border-t-4 border-amber-500">
+            <h4 className="text-xl font-black text-gray-800 mb-4">¿Confirmar cambios?</h4>
+            <div className="space-y-3 mb-6 bg-amber-50 p-4 rounded-2xl border border-amber-100">
+              {getChanges().length > 0 ? getChanges().map((c, i) => (
+                <div key={i} className="text-xs font-bold text-amber-800">
+                  <span className="uppercase text-[10px] text-amber-400 block mb-1">{c.field}</span>
+                  {c.before} <span className="text-amber-300 mx-2">→</span> {c.after}
+                </div>
+              )) : <p className="text-xs text-gray-500 italic">No se detectaron cambios visuales en el perfil.</p>}
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setShowConfirm(false)} className="flex-1 py-3 text-gray-400 font-bold text-xs uppercase">Revisar</button>
+              <button onClick={handleSave} className="flex-1 py-3 bg-amber-500 text-white rounded-xl font-black shadow-lg shadow-amber-200 text-xs uppercase">Confirmar</button>
+            </div>
           </div>
         </div>
       )}
     </div>
   );
-};
+}
 
 export default AdminUsers;
->>>>>>> origin/Login_CV2

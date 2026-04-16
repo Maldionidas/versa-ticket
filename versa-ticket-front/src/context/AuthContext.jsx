@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import { login as apiLogin, logout as apiLogout } from '../api/auth';
+import authService from '../api/auth'; 
 import sessionManager from '../api/sessionManager';
 
 const AuthContext = createContext();
@@ -18,7 +18,6 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     const initializeAuth = () => {
-      // Usamos localStorage por tu preferencia de persistencia
       const token = localStorage.getItem('token');
       const savedUser = localStorage.getItem('user') || localStorage.getItem('usuario');
       
@@ -46,41 +45,44 @@ export const AuthProvider = ({ children }) => {
 
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [user]);
+  }, []); // Quitamos [user] para evitar bucles infinitos en el init
 
   const login = async (email, password) => {
     try {
-      const response = await apiLogin(email, password);
+      // Usamos authService directamente
+      const data = await authService.login(email, password);
 
-      // Normalizamos: tu compa usa .data.usuario, tú usas .data.user
-      const userData = response.data?.usuario || response.data?.user;
-      const token = response.data?.token;
+      const userData = data.usuario || data.user;
+      const token = data.token;
 
       if (token && userData) {
-        // Guardamos en localStorage (tu diseño de persistencia)
         localStorage.setItem('token', token);
         localStorage.setItem('user', JSON.stringify(userData));
 
         setUser(userData);
         sessionManager.registerSession(userData.id, token);
 
-        console.log('Login exitoso y sesión registrada');
-        return response.data;
+        console.log('✅ Login exitoso y sesión registrada');
+        return data;
       } else {
         throw new Error('Respuesta inválida del servidor');
       }
     } catch (error) {
-      console.error('Error en login:', error);
+      console.error('❌ Error en login:', error);
       throw error;
     }
   };
 
   const logout = () => {
     sessionManager.clearSession();
+    // Limpiamos todo el rastro
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     localStorage.removeItem('usuario');
-    apiLogout();
+    
+    // Llamamos al logout del servicio (que borra axios headers si existen)
+    authService.logout();
+    
     setUser(null);
     window.location.href = '/login'; 
   };
@@ -93,7 +95,6 @@ export const AuthProvider = ({ children }) => {
       loading,
       isAuthenticated: !!user 
     }}>
-      {/* Solo renderizamos los hijos si ya terminó de cargar el estado inicial */}
       {!loading && children}
     </AuthContext.Provider>
   );

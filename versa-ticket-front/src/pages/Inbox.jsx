@@ -1,7 +1,7 @@
 // src/pages/Inbox.jsx
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import api from '../api/axios'; // ✅ Importar la instancia configurada
+import api from '../api/axios';
 
 const Inbox = () => {
   const { user } = useAuth();
@@ -27,7 +27,6 @@ const Inbox = () => {
     setLoading(false);
   };
 
-  // ✅ CORREGIDO: Usar api en lugar de fetch
   const cargarTickets = async () => {
     try {
       const response = await api.get('/tickets');
@@ -42,7 +41,6 @@ const Inbox = () => {
     }
   };
 
-  // ✅ CORREGIDO: Usar api en lugar de fetch
   const cargarAgentes = async () => {
     try {
       const response = await api.get('/users', {

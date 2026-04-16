@@ -4,7 +4,7 @@ const router = express.Router();
 
 const usersController = require("../controllers/usersController");
 // Importamos desde nuestro nuevo middleware unificado
-const { verifyToken, hasPermission } = require("../middlewares/auth");
+const { verifyToken, hasPermission } = require("../middlewares/authMiddleware");
 
 // Capa de seguridad 1: Todos deben estar logueados
 router.use(verifyToken);

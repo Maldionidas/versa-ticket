@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const areasController = require("../controllers/areasController");
-const { verifyToken, hasPermission } = require("../middlewares/auth");
+const { verifyToken, hasPermission } = require("../middlewares/authMiddleware");
 
 // CAPA 1: Todas las rutas de aquí para abajo requieren un Token JWT válido
 router.use(verifyToken);

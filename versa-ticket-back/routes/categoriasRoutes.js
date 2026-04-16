@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 
 // Importamos del nuevo middleware unificado
-const { verifyToken, hasPermission } = require("../middlewares/auth");
+const { verifyToken, hasPermission } = require("../middlewares/authMiddleware");
 const categoriasController = require("../controllers/categoriasController");
 
 // 🛡️ CAPA 1: Protegemos todas las rutas exigiendo que el usuario tenga sesión (Token válido)

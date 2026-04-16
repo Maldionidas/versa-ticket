@@ -1,9 +1,9 @@
 // controllers/rolesController.js
-const db = require("../config/db");
+const {sql} = require("../config/db");
 
 const getRoles = async (req, res) => {
   try {
-    const result = await db.query("SELECT * FROM roles ORDER BY id");
+    const result = await sql`SELECT * FROM roles ORDER BY id`;
     // En pg, los datos vienen dentro de result.rows
     res.json(result.rows || result);
   } catch (error) {
@@ -15,7 +15,7 @@ const getRoles = async (req, res) => {
 const getRoleById = async (req, res) => {
   try {
     const { id } = req.params;
-    const result = await db.query("SELECT * FROM roles WHERE id = $1", [id]);
+    const result = await sql.query("SELECT * FROM roles WHERE id = $1", [id]);
     
     const rows = result.rows || result;
     if (rows.length === 0) {
@@ -34,7 +34,7 @@ const createRole = async (req, res) => {
     // 🛡️ MANTENEMOS TUS PERMISOS, NADA DE "NIVELES"
     const { nombre, descripcion, permisos } = req.body;
     
-    const result = await db.query(
+    const result = await sql.query(
       "INSERT INTO roles (nombre, descripcion, permisos) VALUES ($1, $2, $3) RETURNING *",
       [nombre, descripcion, permisos]
     );
@@ -52,7 +52,7 @@ const updateRole = async (req, res) => {
     const { id } = req.params;
     const { nombre, descripcion, permisos } = req.body;
     
-    const result = await db.query(
+    const result = await sql.query(
       "UPDATE roles SET nombre=$1, descripcion=$2, permisos=$3 WHERE id=$4 RETURNING *",
       [nombre, descripcion, permisos, id]
     );
@@ -73,7 +73,7 @@ const deleteRole = async (req, res) => {
   try {
     const { id } = req.params;
     
-    const result = await db.query("DELETE FROM roles WHERE id = $1 RETURNING id", [id]);
+    const result = await sql.query("DELETE FROM roles WHERE id = $1 RETURNING id", [id]);
     const rows = result.rows || result;
     
     if (rows.length === 0) {

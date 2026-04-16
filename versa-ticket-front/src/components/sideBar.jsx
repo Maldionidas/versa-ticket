@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { cn } from '../lib/utils';
 import logo from '../assets/Logo-Versa.jpeg';
-import mascot from '../assets/mascota.jpeg'; // Usamos tu mascota original
+import mascot from '../assets/mascota.png'; 
 
 // Iconos de Lucide
 import { 
@@ -74,9 +74,9 @@ export function TicketSidebar() {
     // Si es Administrador (Rol 2)
     if (rolId === 2) {
       items.push(
-        { label: 'Gestión Global', path: '/inbox', icon: Ticket },
+        { label: 'Bandeja de entrada', path: '/inbox', icon: Ticket },
         { label: 'Nuevo Ticket', path: '/create-ticket', icon: PlusCircle },
-        { label: 'Configuración', path: '/admin', icon: Settings }
+        { label: 'Panel de administración', path: '/admin', icon: Settings }
       );
     }
     
@@ -103,20 +103,6 @@ export function TicketSidebar() {
         </div>
       </div>
 
-      {/* Perfil de Usuario */}
-      {user && (
-        <div className="mx-4 mb-6 p-4 bg-white/5 rounded-xl border border-white/10">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-orange-600 text-white font-bold text-sm shadow-inner">
-              {getInitials()}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold truncate leading-none">{user.nombre} {user.apellido}</p>
-              {getRolBadge()}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Menú de Navegación */}
       <nav className="flex-1 space-y-1.5 px-3 py-2 overflow-y-auto custom-scrollbar">
@@ -143,7 +129,20 @@ export function TicketSidebar() {
       </nav>
 
       {/* Footer / Logout */}
+
       <div className="border-t border-gray-700/50 p-4">
+      {/* Perfil de Usuario */}
+      {user && (
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-orange-600 text-white font-bold text-sm shadow-inner">
+              {getInitials()}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold truncate leading-none">{user.nombre} {user.apellido}</p>
+              {getRolBadge()}
+            </div>
+          </div>
+      )}
         <button
           onClick={handleLogout}
           className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold text-gray-400 hover:bg-red-500/10 hover:text-red-500 transition-all duration-300"
