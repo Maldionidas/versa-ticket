@@ -146,22 +146,22 @@ export function AdminCategorias({ user, permisos }) {
                 )}
             </div>
 
-            <div className="overflow-x-auto">
-                <table className="min-w-full border border-gray-200">
+            <div className="overflow-x-auto border border-gray-100 rounded-2xl">
+                <table className="min-w-full divide-y divide-gray-100">
                     <thead className="bg-gray-100">
                         <tr>
-                            <th className="p-2 border">ID</th>
-                            <th className="p-2 border">Nombre</th>
-                            <th className="p-2 border">Descripción</th>
-                            <th className="p-2 border">Área</th>
-                            <th className="p-2 border">Activo</th>
-                            <th className="p-2 border">Acciones</th>
+                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-widest">ID</th>
+                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-widest">Nombre</th>
+                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-widest">Descripción</th>
+                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-widest">Área</th>
+                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-widest">Activo</th>
+                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-widest">Acciones</th>
                         </tr>
                     </thead>
                     <tbody>
                         {Array.isArray(categorias) && categorias.map((c) => (
-                            <tr key={c.id} className="text-center hover:bg-gray-50">
-                                <td className="p-2 border">{c.id}</td>
+                            <tr key={c.id} className="thover:bg-amber-50/30 transition-colors">
+                                <td className="px-6 py-4 text-sm font-bold text-gray-400">{c.id}</td>
                                 <td className="p-2 border font-medium">{c.nombre}</td>
                                 <td className="p-2 border text-sm text-gray-600 truncate max-w-xs">{c.descripcion}</td>
                                 <td className="p-2 border">{c.area_nombre || c.area_id}</td>

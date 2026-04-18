@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import api from '../api/axios'; // Usamos la instancia con el token
 
 export function AdminCampos({ user, permisos }) {
@@ -171,28 +171,28 @@ export function AdminCampos({ user, permisos }) {
                 )}
             </div>
 
-            <div className="overflow-x-auto">
-                <table className="min-w-full border border-gray-200">
-                    <thead className="bg-gray-100">
+            <div className="overflow-x-auto border border-gray-100 rounded-2xl">
+                <table className="min-w-full divide-y divide-gray-100">
+                    <thead className="bg-gray-50/50">
                         <tr>
-                            <th className="p-2 border">ID</th>
-                            <th className="p-2 border">Área</th>
-                            <th className="p-2 border">Nombre del Campo</th>
-                            <th className="p-2 border">Tipo</th>
-                            <th className="p-2 border">Requerido</th>
-                            <th className="p-2 border">Activo</th>
-                            <th className="p-2 border">Acciones</th>
+                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-widest">ID</th>
+                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-widest">Área</th>
+                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-widest">Nombre del Campo</th>
+                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-widest">Tipo</th>
+                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-widest">Requerido</th>
+                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-widest">Activo</th>
+                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-widest">Acciones</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody className="divide-y divide-gray-50 bg-white">
                         {campos.map((c) => (
-                            <tr key={c.id} className="text-center hover:bg-gray-50">
-                                <td className="p-2 border">{c.id}</td>
-                                <td className="p-2 border font-medium">{c.area_nombre}</td>
-                                <td className="p-2 border">{c.nombre_campo}</td>
-                                <td className="p-2 border capitalize">{c.tipo_dato}</td>
-                                <td className="p-2 border">{c.requerido ? "Sí" : "No"}</td>
-                                <td className="p-2 border">
+                            <tr key={c.id} className="hover:bg-amber-50/30 transition-colors">
+                                <td className="px-6 py-4 text-sm font-bold text-gray-400">{c.id}</td>
+                                <td className="px-6 py-4 text-sm font-medium text-gray-800">{c.area_nombre}</td>
+                                <td className="px-6 py-4 text-sm text-gray-600">{c.nombre_campo}</td>
+                                <td className="px-6 py-4 text-sm text-gray-600 capitalize">{c.tipo_dato}</td>
+                                <td className="px-6 py-4 text-sm text-gray-600">{c.requerido ? "Sí" : "No"}</td>
+                                <td className="px-6 py-4 text-sm text-gray-600">
                                     <span className={`px-2 py-1 rounded text-xs ${c.activo ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                                         {c.activo ? "Sí" : "No"}
                                     </span>
