@@ -1,65 +1,85 @@
+// routes/dashboardRoutes.js
 const express = require('express');
 const router = express.Router();
-const sql = require('../config/db');
 
-// Importamos el middleware de seguridad unificado
+// 1. Importaciones correctas para Neon y tu Auth unificado
+const { sql } = require("../config/db");
 const { verifyToken } = require('../middlewares/authMiddleware');
 
-// Protegemos la ruta inyectando verifyToken
 router.get('/stats', verifyToken, async (req, res) => {
     try {
+        const userId = req.user.id;
+        const userRole = req.user.rol_id;
         const { period = '24h' } = req.query;
-        // Obtenemos el ID del usuario gracias a verifyToken
-        const userId = req.user.id; 
         
         let intervalHours = 24;
         if (period === '7d') intervalHours = 168;
         if (period === '30d') intervalHours = 720;
         
-        // 1. Estadisticas Generales (Para toda la empresa)
-        const generalStats = await sql`
-            SELECT 
-                COUNT(*) as total,
-                COUNT(CASE WHEN prioridad_id = 1 THEN 1 END) as critical,
-                COUNT(CASE WHEN estado_id IN (1, 2, 3) THEN 1 END) as open,
-                COUNT(CASE WHEN estado_id IN (4, 5) THEN 1 END) as rejected
-            FROM tickets
-            WHERE fecha_creacion >= NOW() - (INTERVAL '1 hour' * ${intervalHours})
-        `;
+        let statsResult;
+
+        // 2. Fusionamos la lógica de Roles con la lógica de Fechas (Sintaxis Neon)
+        if (userRole === 2 || userRole === "Administrador") {
+            // Admin ve TODOS los tickets
+            statsResult = await sql`
+                SELECT 
+                    COUNT(*)::int as total,
+                    COUNT(CASE WHEN estado_id = 1 THEN 1 END)::int as abiertos,
+                    COUNT(CASE WHEN estado_id = 2 THEN 1 END)::int as en_progreso,
+                    COUNT(CASE WHEN estado_id IN (4, 5) THEN 1 END)::int as resueltos
+                FROM tickets
+                WHERE fecha_creacion >= NOW() - (INTERVAL '1 hour' * ${intervalHours})
+            `;
+        } else if (userRole === 3 || userRole === "Agente") {
+            // Agente ve solo lo que tiene asignado
+            statsResult = await sql`
+                SELECT 
+                    COUNT(*)::int as total,
+                    COUNT(CASE WHEN estado_id = 1 THEN 1 END)::int as abiertos,
+                    COUNT(CASE WHEN estado_id = 2 THEN 1 END)::int as en_progreso,
+                    COUNT(CASE WHEN estado_id IN (4, 5) THEN 1 END)::int as resueltos
+                FROM tickets
+                WHERE responsable_id = ${userId}
+                AND fecha_creacion >= NOW() - (INTERVAL '1 hour' * ${intervalHours})
+            `;
+        } else {
+            // Usuario Normal ve solo los suyos
+            statsResult = await sql`
+                SELECT 
+                    COUNT(*)::int as total,
+                    COUNT(CASE WHEN estado_id = 1 THEN 1 END)::int as abiertos,
+                    COUNT(CASE WHEN estado_id = 2 THEN 1 END)::int as en_progreso,
+                    COUNT(CASE WHEN estado_id IN (4, 5) THEN 1 END)::int as resueltos
+                FROM tickets
+                WHERE usuario_id = ${userId}
+                AND fecha_creacion >= NOW() - (INTERVAL '1 hour' * ${intervalHours})
+            `;
+        }
         
-        // 2. Estadisticas Personales (Para el usuario que inicio sesion)
-        const personalStats = await sql`
-            SELECT 
-                COUNT(CASE WHEN usuario_id = ${userId} THEN 1 END) as mis_tickets,
-                COUNT(CASE WHEN responsable_id = ${userId} THEN 1 END) as mis_tareas
-            FROM tickets
-            WHERE fecha_creacion >= NOW() - (INTERVAL '1 hour' * ${intervalHours})
-        `;
+        const row = statsResult[0] || {};
         
-        const statsRow = generalStats[0] || {};
-        const personalRow = personalStats[0] || {};
-        
+        // 3. Mandamos la respuesta doble para evitar que el frontend truene 
+        // sin importar qué versión del dashboard ganó en el merge.
         res.json({
+            success: true,
             stats: {
-                total: parseInt(statsRow.total) || 0,
-                critical: parseInt(statsRow.critical) || 0,
-                open: parseInt(statsRow.open) || 0,
-                rejected: parseInt(statsRow.rejected) || 0,
-                myTickets: parseInt(personalRow.mis_tickets) || 0,
-                myTasks: parseInt(personalRow.mis_tareas) || 0
+                total: row.total || 0,
+                open: row.abiertos || 0,
+                inProgress: row.en_progreso || 0,
+                resolved: row.resueltos || 0,
+                rejected: 0 // Por si el frontend lo pide
             },
-            // Estas metricas siguen hardcodeadas, despues podemos calcularlas de verdad
-            metrics: {
-                responseTime: 85,
-                resolutionRate: 72,
-                satisfaction: 91
-            },
-            unresolvedCritical: []
+            data: {
+                totalTickets: row.total || 0,
+                openTickets: row.abiertos || 0,
+                inProgress: row.en_progreso || 0,
+                resolved: row.resueltos || 0
+            }
         });
         
     } catch (error) {
-        console.error('Error:', error);
-        res.status(500).json({ error: 'Error al obtener estadisticas' });
+        console.error('Error en dashboard:', error);
+        res.status(500).json({ error: 'Error al obtener estadísticas' });
     }
 });
 
