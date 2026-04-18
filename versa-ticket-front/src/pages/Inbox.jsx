@@ -1,15 +1,67 @@
 // src/pages/Inbox.jsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import api from '../api/axios'; // ✅ Importar la instancia configurada
+import api from '../api/axios';
+import TicketComments from '../components/TicketComments';
 
+// 1. FUNCIONES Y CONSTANTES ESTÁTICAS FUERA DEL COMPONENTE
+const estadosTicket = [
+  { id: 1, nombre: 'Abierto' },
+  { id: 2, nombre: 'En proceso' },
+  { id: 3, nombre: 'En espera' },
+  { id: 4, nombre: 'Resuelto' },
+  { id: 5, nombre: 'Cerrado' }
+];
+
+const formatDate = (dateString) => {
+  if (!dateString) return 'Fecha no disponible';
+  const date = new Date(dateString);
+  return date.toLocaleDateString('es-ES', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+};
+
+const getPriorityColor = (prioridad) => {
+  const prioridadLower = prioridad?.toLowerCase() || '';
+  const colors = {
+    'crítica': 'text-red-600 bg-red-100',
+    'critica': 'text-red-600 bg-red-100',
+    'alta': 'text-orange-600 bg-orange-100',
+    'media': 'text-yellow-600 bg-yellow-100',
+    'baja': 'text-green-600 bg-green-100'
+  };
+  return colors[prioridadLower] || 'text-gray-600 bg-gray-100';
+};
+
+const getStatusColor = (estado) => {
+  const estadoLower = estado?.toLowerCase() || '';
+  const colors = {
+    'abierto': 'text-blue-600 bg-blue-100',
+    'pendiente': 'text-blue-600 bg-blue-100',
+    'en proceso': 'text-purple-600 bg-purple-100',
+    'en_progreso': 'text-purple-600 bg-purple-100',
+    'en espera': 'text-orange-600 bg-orange-100',
+    'resuelto': 'text-green-600 bg-green-100',
+    'completado': 'text-green-600 bg-green-100',
+    'cerrado': 'text-gray-600 bg-gray-100'
+  };
+  return colors[estadoLower] || 'text-gray-600 bg-gray-100';
+};
+
+// 2. COMPONENTE PRINCIPAL
 const Inbox = () => {
   const { user } = useAuth();
   const [tickets, setTickets] = useState([]);
   const [agentes, setAgentes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
-  const [selectedTicket, setSelectedTicket] = useState(null);
+  const [selectedTicketId, setSelectedTicketId] = useState(null); 
+  
+  const detailRef = useRef(null); // Ref para hacer scroll en móviles
 
   const isAdmin = user?.rol_id === 2;
   const isAgente = user?.rol_id === 3;
@@ -20,34 +72,23 @@ const Inbox = () => {
 
   const cargarDatos = async () => {
     setLoading(true);
-    await Promise.all([
-      cargarTickets(),
-      cargarAgentes()
-    ]);
+    await Promise.all([cargarTickets(), cargarAgentes()]);
     setLoading(false);
   };
 
-  // ✅ CORREGIDO: Usar api en lugar de fetch
   const cargarTickets = async () => {
     try {
       const response = await api.get('/tickets');
-      console.log('Tickets:', response.data);
-      setTickets(response.data);
+      setTickets(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       console.error('Error cargando tickets:', error);
-      if (error.response?.status === 401) {
-        // El interceptor ya maneja la redirección, solo logueamos
-        console.warn('No autorizado - redirigiendo a login');
-      }
+      setTickets([]);
     }
   };
 
-  // ✅ CORREGIDO: Usar api en lugar de fetch
   const cargarAgentes = async () => {
     try {
-      const response = await api.get('/users', {
-        params: { rol: 3 }
-      });
+      const response = await api.get('/users', { params: { rol: 3 } });
       setAgentes(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       console.error('Error cargando agentes:', error);
@@ -55,24 +96,13 @@ const Inbox = () => {
     }
   };
 
-  // ✅ CORREGIDO: Usar api en lugar de fetch
   const asignarAgente = async (ticketId, agenteId) => {
     setUpdating(true);
     try {
-      await api.put(`/tickets/${ticketId}`, { 
-        responsable_id: agenteId || null 
-      });
-      
+      await api.put(`/tickets/${ticketId}`, { responsable_id: agenteId || null });
       alert('✅ Agente asignado correctamente');
-      await cargarTickets();
-      
-      // Actualizar ticket seleccionado
-      if (selectedTicket?.id === ticketId) {
-        const ticketActualizado = tickets.find(t => t.id === ticketId);
-        setSelectedTicket(ticketActualizado);
-      }
+      await cargarTickets(); 
     } catch (error) {
-      console.error('Error:', error);
       const mensaje = error.response?.data?.message || 'Error al asignar agente';
       alert(`❌ ${mensaje}`);
     } finally {
@@ -80,24 +110,13 @@ const Inbox = () => {
     }
   };
 
-  // ✅ CORREGIDO: Usar api en lugar de fetch
   const actualizarEstado = async (ticketId, nuevoEstadoId) => {
     setUpdating(true);
     try {
-      await api.put(`/tickets/${ticketId}`, { 
-        estado_id: nuevoEstadoId 
-      });
-      
+      await api.put(`/tickets/${ticketId}`, { estado_id: nuevoEstadoId });
       alert('✅ Estado actualizado correctamente');
-      await cargarTickets();
-      
-      // Actualizar ticket seleccionado
-      if (selectedTicket?.id === ticketId) {
-        const ticketActualizado = tickets.find(t => t.id === ticketId);
-        setSelectedTicket(ticketActualizado);
-      }
+      await cargarTickets(); 
     } catch (error) {
-      console.error('Error:', error);
       const mensaje = error.response?.data?.message || 'Error al actualizar estado';
       alert(`❌ ${mensaje}`);
     } finally {
@@ -105,72 +124,25 @@ const Inbox = () => {
     }
   };
 
-  const formatDate = (dateString) => {
-    if (!dateString) return 'Fecha no disponible';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('es-ES', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
-  const getPriorityColor = (prioridad) => {
-    const prioridadLower = prioridad?.toLowerCase() || '';
-    switch (prioridadLower) {
-      case 'crítica':
-      case 'critica':
-        return 'text-red-600 bg-red-100';
-      case 'alta':
-        return 'text-orange-600 bg-orange-100';
-      case 'media':
-        return 'text-yellow-600 bg-yellow-100';
-      case 'baja':
-        return 'text-green-600 bg-green-100';
-      default:
-        return 'text-gray-600 bg-gray-100';
-    }
-  };
-
-  const getStatusColor = (estado) => {
-    const estadoLower = estado?.toLowerCase() || '';
-    switch (estadoLower) {
-      case 'abierto':
-      case 'pendiente':
-        return 'text-blue-600 bg-blue-100';
-      case 'en proceso':
-      case 'en_progreso':
-        return 'text-purple-600 bg-purple-100';
-      case 'en espera':
-        return 'text-orange-600 bg-orange-100';
-      case 'resuelto':
-      case 'completado':
-        return 'text-green-600 bg-green-100';
-      case 'cerrado':
-        return 'text-gray-600 bg-gray-100';
-      default:
-        return 'text-gray-600 bg-gray-100';
-    }
-  };
-
-  const estadosTicket = [
-    { id: 1, nombre: 'Abierto' },
-    { id: 2, nombre: 'En proceso' },
-    { id: 3, nombre: 'En espera' },
-    { id: 4, nombre: 'Resuelto' },
-    { id: 5, nombre: 'Cerrado' }
-  ];
-
-  // Filtrar tickets según el rol
-  const getFilteredTickets = () => {
+  const filteredTickets = useMemo(() => {
+    if (!Array.isArray(tickets)) return [];
     if (isAdmin) return tickets;
     if (isAgente) return tickets.filter(t => t.responsable_id === user?.id);
     return tickets.filter(t => t.usuario_id === user?.id);
-  };
+  }, [tickets, isAdmin, isAgente, user?.id]);
 
-  const filteredTickets = getFilteredTickets();
+  const selectedTicket = useMemo(() => 
+    tickets.find(t => t.id === selectedTicketId) || null,
+  [tickets, selectedTicketId]);
+
+  // Función para seleccionar un ticket y hacer scroll en celulares
+  const handleSelectTicket = (id) => {
+    setSelectedTicketId(id);
+    // Pequeño retraso para dar tiempo a que React renderice el detalle
+    setTimeout(() => {
+      detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
+  };
 
   if (loading) {
     return (
@@ -181,11 +153,11 @@ const Inbox = () => {
   }
 
   return (
-    <div className="p-6">
-      <h1 className="text-3xl font-bold text-gray-800 mb-2">
+    <div className="p-4 sm:p-6">
+      <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-2">
         {isAdmin ? '📋 Todos los Tickets' : '📥 Bandeja de entrada'}
       </h1>
-      <p className="text-gray-500 mb-6">
+      <p className="text-sm sm:text-base text-gray-500 mb-6">
         {isAdmin ? 'Gestiona todos los tickets del sistema' : 'Tus tickets y solicitudes'}
       </p>
 
@@ -200,25 +172,26 @@ const Inbox = () => {
             filteredTickets.map((ticket) => (
               <div
                 key={ticket.id}
-                onClick={() => setSelectedTicket(ticket)}
+                onClick={() => handleSelectTicket(ticket.id)}
                 className={`bg-white rounded-lg shadow p-4 cursor-pointer transition-all hover:shadow-md ${
-                  selectedTicket?.id === ticket.id ? 'ring-2 ring-amber-500' : ''
+                  selectedTicketId === ticket.id ? 'ring-2 ring-amber-500' : ''
                 }`}
               >
-                <div className="flex justify-between items-start mb-2">
-                  <h3 className="font-semibold text-gray-800">{ticket.titulo}</h3>
-                  <span className={`text-xs px-2 py-1 rounded-full ${getPriorityColor(ticket.prioridad_nombre)}`}>
+                {/* Agregado gap-2 para evitar que textos muy largos choquen con el badge */}
+                <div className="flex justify-between items-start gap-2 mb-2">
+                  <h3 className="font-semibold text-gray-800 break-words line-clamp-2">{ticket.titulo}</h3>
+                  <span className={`flex-shrink-0 text-xs px-2 py-1 rounded-full ${getPriorityColor(ticket.prioridad_nombre)}`}>
                     {ticket.prioridad_nombre || 'Media'}
                   </span>
                 </div>
                 <p className="text-sm text-gray-600 line-clamp-2">{ticket.descripcion}</p>
-                <div className="flex justify-between items-center mt-3">
+                <div className="flex flex-wrap justify-between items-center mt-3 gap-2">
                   <span className="text-xs text-gray-400">{formatDate(ticket.fecha_creacion)}</span>
                   <span className={`text-xs px-2 py-1 rounded-full ${getStatusColor(ticket.estado_nombre)}`}>
                     {ticket.estado_nombre || 'Pendiente'}
                   </span>
                 </div>
-                <div className="mt-2 text-xs text-gray-400">
+                <div className="mt-2 text-xs text-gray-400 break-words">
                   👤 {ticket.usuario_nombre || 'Usuario'} 
                   {ticket.responsable_nombre && ` | 🎧 ${ticket.responsable_nombre}`}
                 </div>
@@ -228,18 +201,19 @@ const Inbox = () => {
         </div>
 
         {/* Detalle del ticket */}
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2" ref={detailRef}>
           {selectedTicket ? (
             <div className="bg-white rounded-lg shadow">
-              <div className="p-6 border-b">
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <h2 className="text-xl font-bold text-gray-800">{selectedTicket.titulo}</h2>
+              <div className="p-4 sm:p-6 border-b">
+                {/* flex-col en móvil y md:flex-row en PC */}
+                <div className="flex flex-col md:flex-row justify-between items-start gap-4 md:gap-0 mb-4">
+                  <div className="w-full md:w-auto">
+                    <h2 className="text-lg sm:text-xl font-bold text-gray-800 break-words">{selectedTicket.titulo}</h2>
                     <p className="text-sm text-gray-500 mt-1">
                       #{selectedTicket.id?.toString().padStart(6, '0')}
                     </p>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2 w-full md:w-auto">
                     <span className={`text-xs px-3 py-1 rounded-full ${getPriorityColor(selectedTicket.prioridad_nombre)}`}>
                       {selectedTicket.prioridad_nombre || 'Media'}
                     </span>
@@ -249,17 +223,18 @@ const Inbox = () => {
                   </div>
                 </div>
                 <p className="text-sm text-gray-500">📅 {formatDate(selectedTicket.fecha_creacion)}</p>
-                <p className="text-sm text-gray-500 mt-1">👤 Creado por: {selectedTicket.usuario_nombre || 'N/A'}</p>
+                <p className="text-sm text-gray-500 mt-1 break-words">👤 Creado por: {selectedTicket.usuario_nombre || 'N/A'}</p>
               </div>
 
-              <div className="p-6 border-b">
+              <div className="p-4 sm:p-6 border-b">
                 <h3 className="font-semibold text-gray-800 mb-3">📄 Descripción</h3>
-                <p className="text-gray-600 whitespace-pre-wrap">{selectedTicket.descripcion}</p>
+                <p className="text-gray-600 whitespace-pre-wrap text-sm sm:text-base">{selectedTicket.descripcion}</p>
               </div>
 
-              <div className="p-6 border-b">
+              <div className="p-4 sm:p-6 border-b">
                 <h3 className="font-semibold text-gray-800 mb-3">ℹ️ Información</h3>
-                <div className="grid grid-cols-2 gap-4">
+                {/* 1 columna en móvil, 2 columnas en pantallas pequeñas/grandes */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="bg-gray-50 rounded-lg p-3">
                     <p className="text-xs text-gray-500">Área</p>
                     <p className="text-sm font-medium">{selectedTicket.area_nombre || 'No asignada'}</p>
@@ -271,16 +246,16 @@ const Inbox = () => {
                 </div>
               </div>
 
-              {/* Asignar Agente - Solo visible para Admin */}
+              {/* Asignar Agente */}
               {isAdmin && (
-                <div className="p-6 border-b">
+                <div className="p-4 sm:p-6 border-b">
                   <h3 className="font-semibold text-gray-800 mb-3">🎧 Asignar Agente</h3>
                   <div className="flex gap-3">
                     <select
                       value={selectedTicket.responsable_id || ''}
                       onChange={(e) => asignarAgente(selectedTicket.id, e.target.value)}
                       disabled={updating}
-                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm sm:text-base"
                     >
                       <option value="">Sin asignar</option>
                       {agentes.map((agente) => (
@@ -298,9 +273,9 @@ const Inbox = () => {
                 </div>
               )}
 
-              {/* Actualizar Estado - Visible para Admin y Agente */}
+              {/* Actualizar Estado */}
               {(isAdmin || isAgente) && (
-                <div className="p-6 border-b">
+                <div className="p-4 sm:p-6 border-b">
                   <h3 className="font-semibold text-gray-800 mb-3">🔄 Actualizar Estado</h3>
                   <div className="flex flex-wrap gap-2">
                     {estadosTicket.map((estado) => (
@@ -308,7 +283,7 @@ const Inbox = () => {
                         key={estado.id}
                         onClick={() => actualizarEstado(selectedTicket.id, estado.id)}
                         disabled={updating}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+                        className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-medium transition whitespace-nowrap ${
                           selectedTicket.estado_id === estado.id
                             ? 'bg-amber-500 text-white'
                             : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -321,21 +296,24 @@ const Inbox = () => {
                 </div>
               )}
 
-              <div className="p-6">
-                <h3 className="font-semibold text-gray-800 mb-3">📜 Historial</h3>
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <p className="text-gray-500 text-sm">No hay comentarios disponibles</p>
-                </div>
+              {/* Sección de comentarios */}
+              <div className="border-t">
+                <TicketComments 
+                  ticketId={selectedTicket.id} 
+                  ticketEstadoId={selectedTicket.estado_id}
+                  ticketEstadoNombre={selectedTicket.estado_nombre}
+                />
               </div>
 
+              {/* Footer */}
               <div className="p-4 bg-gray-50 rounded-b-lg border-t">
                 <p className="text-xs text-gray-400">Sistema de Tickets - Versa Ticket</p>
               </div>
             </div>
           ) : (
-            <div className="bg-white rounded-lg shadow p-8 text-center text-gray-500">
-              <div className="text-6xl mb-4">📧</div>
-              <p>Selecciona un ticket para ver los detalles</p>
+            <div className="bg-white rounded-lg shadow p-8 text-center text-gray-500 h-full flex flex-col justify-center items-center min-h-[300px]">
+              <div className="text-5xl sm:text-6xl mb-4">📧</div>
+              <p className="text-sm sm:text-base">Selecciona un ticket para ver los detalles</p>
             </div>
           )}
         </div>

@@ -4,6 +4,8 @@ const router = express.Router();
 const categoriasController = require("../controllers/categoriasController");
 // ✅ CORREGIR: La ruta correcta es ../middlewares/auth
 const { verifyToken, isAdmin } = require("../middlewares/auth");
+const { checkTicketNotClosed } = require("../middlewares/ticketStatus");
+
 
 // Todas las rutas requieren autenticación
 router.use(verifyToken);

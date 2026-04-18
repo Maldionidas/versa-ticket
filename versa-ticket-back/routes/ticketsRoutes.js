@@ -1,20 +1,24 @@
 // routes/ticketsRoutes.js
-const express = require("express");
+const express = require('express');
 const router = express.Router();
-const ticketsController = require("../controllers/ticketsController");
-// ✅ CORREGIR
 const { verifyToken } = require("../middlewares/auth");
+const { checkTicketNotClosed, checkTicketIsClosed } = require("../middlewares/ticketStatus");
+const {
+  getTickets,
+  getTicketById,
+  createTicket,
+  updateTicket,
+  deleteTicket
+} = require("../controllers/ticketsController");
 
-// Todas las rutas requieren autenticación
+// Aplicar autenticación a todas las rutas
 router.use(verifyToken);
 
-router.get("/assigned", ticketsController.getAssignedTickets);
-
-router.get("/", ticketsController.getTickets);
-router.get("/:id", ticketsController.getTicketById);
-router.post("/", ticketsController.createTicket);
-router.put("/:id", ticketsController.updateTicket);
-router.delete("/:id", ticketsController.deleteTicket);
-
+// Rutas
+router.get('/', getTickets);
+router.get('/:id', getTicketById);
+router.post('/', createTicket);
+router.put('/:id', checkTicketNotClosed, updateTicket);
+router.delete('/:id', checkTicketIsClosed, deleteTicket);
 
 module.exports = router;

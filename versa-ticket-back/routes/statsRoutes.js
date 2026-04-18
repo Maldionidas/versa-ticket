@@ -17,6 +17,8 @@ router.get('/', async (req, res) => {
     let inProgressTickets = 0;
     let completedTickets = 0;
     let totalUsers = 0;
+    let totalComments = 0;
+    let avgCommentsPerTicket = 0;
     
     // Según el rol del usuario
     if (userRole === 2) {
@@ -38,6 +40,17 @@ router.get('/', async (req, res) => {
       const usersCount = await db.query(`SELECT COUNT(*) as total FROM users`);
       totalUsers = parseInt(usersCount[0]?.total || 0);
       
+      // Estadísticas de comentarios
+      const commentsStats = await db.query(`
+        SELECT 
+          COUNT(*) as total_comentarios,
+          COUNT(DISTINCT ticket_id) as tickets_con_comentarios
+        FROM comments
+      `);
+      
+      totalComments = parseInt(commentsStats[0]?.total_comentarios || 0);
+      avgCommentsPerTicket = totalTickets > 0 ? (totalComments / totalTickets).toFixed(2) : 0;
+      
     } else if (userRole === 3) {
       // AGENTE: Ve los tickets que le han asignado
       const stats = await db.query(`
@@ -55,6 +68,17 @@ router.get('/', async (req, res) => {
       inProgressTickets = parseInt(stats[0]?.en_progreso || 0);
       completedTickets = parseInt(stats[0]?.completados || 0);
       
+      // Comentarios en tickets asignados
+      const commentsStats = await db.query(`
+        SELECT COUNT(*) as total_comentarios
+        FROM comments c
+        JOIN tickets t ON c.ticket_id = t.id
+        WHERE t.responsable_id = $1
+      `, [userId]);
+      
+      totalComments = parseInt(commentsStats[0]?.total_comentarios || 0);
+      avgCommentsPerTicket = totalTickets > 0 ? (totalComments / totalTickets).toFixed(2) : 0;
+      
     } else {
       // USUARIO NORMAL: Ve solo sus tickets creados
       const stats = await db.query(`
@@ -71,6 +95,17 @@ router.get('/', async (req, res) => {
       pendingTickets = parseInt(stats[0]?.pendientes || 0);
       inProgressTickets = parseInt(stats[0]?.en_progreso || 0);
       completedTickets = parseInt(stats[0]?.completados || 0);
+      
+      // Comentarios en sus tickets
+      const commentsStats = await db.query(`
+        SELECT COUNT(*) as total_comentarios
+        FROM comments c
+        JOIN tickets t ON c.ticket_id = t.id
+        WHERE t.usuario_id = $1
+      `, [userId]);
+      
+      totalComments = parseInt(commentsStats[0]?.total_comentarios || 0);
+      avgCommentsPerTicket = totalTickets > 0 ? (totalComments / totalTickets).toFixed(2) : 0;
     }
     
     res.json({
@@ -80,7 +115,9 @@ router.get('/', async (req, res) => {
         pendingTickets,
         inProgressTickets,
         completedTickets,
-        totalUsers: userRole === 2 ? totalUsers : null
+        totalUsers: userRole === 2 ? totalUsers : null,
+        totalComments,
+        avgCommentsPerTicket: parseFloat(avgCommentsPerTicket)
       }
     });
     
@@ -101,6 +138,8 @@ router.get('/dashboard', async (req, res) => {
     
     let ticketsPorDia = [];
     let prioridadesStats = [];
+    let commentsPorDia = [];
+    let topTicketsComentados = [];
     
     // Tickets por día según el rol
     let diaQuery;
@@ -178,7 +217,9 @@ router.get('/dashboard', async (req, res) => {
       success: true,
       data: {
         ticketsPorDia,
-        prioridadesStats
+        prioridadesStats,
+        commentsPorDia,
+        topTicketsComentados
       }
     });
     
