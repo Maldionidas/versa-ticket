@@ -9,12 +9,11 @@ const TicketsList = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Cargar tickets - ✅ CORREGIDO
+  // Cargar tickets
   useEffect(() => {
     const cargarTickets = async () => {
       try {
         setLoading(true);
-        // ✅ Usar api en lugar de fetch
         const response = await api.get('/tickets');
         setTickets(response.data);
         setError(null);

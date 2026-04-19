@@ -1,5 +1,6 @@
 const express = require("express");
 const cors = require("cors");
+const path = require("path");
 require("dotenv").config();
 
 // ==========================================
@@ -8,17 +9,16 @@ require("dotenv").config();
 const authRoutes = require("./routes/authRoutes");
 const usersRoutes = require("./routes/usersRoutes");
 const ticketsRoutes = require("./routes/ticketsRoutes");
-const catalogosRoutes = require("./routes/categoriasRoutes");
+const catalogosRoutes = require("./routes/catalogosRoutes"); 
 const dashboardRoutes = require("./routes/dashboardRoutes");
 const areasRoutes = require("./routes/areasRoutes");
-const rolesRoutes = require("./routes/rolesRouter");
+const rolesRoutes = require("./routes/rolesRouter"); 
 const categoriasRoutes = require("./routes/categoriasRoutes");
 const camposRoutes = require("./routes/camposRoutes");
 const statsRoutes = require("./routes/statsRoutes");
 const estadosRoutes = require("./routes/estadosRoutes");
 const prioridadesRoutes = require("./routes/prioridadesRoutes");
-const commentsRoutes = require('./routes/commentsRoutes');
-
+const commentsRoutes = require("./routes/commentsRoutes");
 
 const app = express();
 
@@ -27,6 +27,9 @@ const app = express();
 // ==========================================
 app.use(cors());
 app.use(express.json());
+
+// NUEVO: Permite que React acceda a las imágenes de los tickets
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Registro de peticiones en consola para facilitar el debug
 app.use((req, res, next) => {
@@ -55,7 +58,7 @@ app.use("/api/categorias", categoriasRoutes);
 app.use("/api/campos", camposRoutes);
 app.use("/api/comments", commentsRoutes);
 app.use("/api/dashboard", dashboardRoutes);
-app.use("/api/catalogos", catalogosRoutes); // Ruta para obtener datos de catálogo (áreas, roles, categorías, estados, prioridades)
+app.use("/api/catalogos", catalogosRoutes); 
 
 // 3. Módulos de Soporte y Estadísticas
 app.use("/api/stats", statsRoutes);

@@ -1,16 +1,15 @@
-// routes/commentsRoutes.js
+// routes/categoriasRoutes.js
 const express = require('express');
 const router = express.Router();
-const { verifyToken } = require("../middlewares/authMiddleware");
-const commentsController = require("../controllers/commentsController");
+const commentsController = require('../controllers/commentsController');
+const { verifyToken } = require('../middlewares/authMiddleware');
 
-
-// Aplicar autenticación a todas las rutas
 router.use(verifyToken);
 
-// Definir rutas
+// 1. RUTAS ESPECÍFICAS PRIMERO
 router.get('/ticket/:ticketId', commentsController.getCommentsByTicket);
 router.post('/', commentsController.createComment);
 router.delete('/:id', commentsController.deleteComment);
+
 
 module.exports = router;

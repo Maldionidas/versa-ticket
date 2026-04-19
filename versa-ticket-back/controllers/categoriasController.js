@@ -1,11 +1,10 @@
 const { sql } = require("../config/db");
 
 // =========================
-// OBTENER TODAS (Admin) - De tu versión
+// OBTENER TODAS (Admin)
 // =========================
 exports.getAllCategoriasAdmin = async (req, res) => {
     try {
-        // Hacemos JOIN con areas para obtener el nombre del área y mostramos también las inactivas
         const categorias = await sql`
             SELECT c.id, c.nombre, c.descripcion, c.activo, c.area_id, a.nombre as area_nombre
             FROM ticket_categorias c
@@ -21,11 +20,10 @@ exports.getAllCategoriasAdmin = async (req, res) => {
 };
 
 // =========================
-// OBTENER TODAS (Público) - Rescatado de tu compañero pero mejorado
+// OBTENER ACTIVAS (General)
 // =========================
 exports.getCategorias = async (req, res) => {
   try {
-    // Solo devolvemos las categorías activas para los usuarios normales
     const result = await sql`
       SELECT id, nombre, descripcion, area_id 
       FROM ticket_categorias 
@@ -40,11 +38,41 @@ exports.getCategorias = async (req, res) => {
 };
 
 // =========================
-// OBTENER POR ID - Rescatado de tu compañero
+// OBTENER POR ÁREA (Faltaba esta función)
+// =========================
+exports.getCategoriasPorArea = async (req, res) => {
+    try {
+        const { areaId } = req.params;
+        
+        if (isNaN(areaId)) {
+            return res.status(400).json({ message: "El ID del área proporcionado no es válido" });
+        }
+
+        const result = await sql`
+            SELECT id, nombre, descripcion, area_id 
+            FROM ticket_categorias 
+            WHERE area_id = ${areaId} AND activo = true
+            ORDER BY id
+        `;
+        res.json(result);
+    } catch (error) {
+        console.error('Error obteniendo categorías por área:', error);
+        res.status(500).json({ message: "Error obteniendo categorías por área" });
+    }
+};
+
+// =========================
+// OBTENER POR ID (Blindado)
 // =========================
 exports.getCategoriaById = async (req, res) => {
   try {
     const { id } = req.params;
+
+    // Validación anti-crashes
+    if (isNaN(id)) {
+        return res.status(400).json({ message: "El ID proporcionado no es válido" });
+    }
+
     const result = await sql`
       SELECT id, nombre, descripcion, area_id, activo
       FROM ticket_categorias 
@@ -62,12 +90,11 @@ exports.getCategoriaById = async (req, res) => {
 };
 
 // =========================
-// CREAR CATEGORÍA - De tu versión (Avanzada)
+// CREAR CATEGORÍA
 // =========================
 exports.createCategoria = async (req, res) => {
     const { nombre, descripcion, area_id, activo } = req.body;
 
-    // Validación extra que tenía tu compañero
     if (!nombre) {
         return res.status(400).json({ message: "El nombre es requerido" });
     }
@@ -90,14 +117,17 @@ exports.createCategoria = async (req, res) => {
 };
 
 // =========================
-// ACTUALIZAR CATEGORÍA - De tu versión 
+// ACTUALIZAR CATEGORÍA (Blindado)
 // =========================
 exports.updateCategoria = async (req, res) => {
     const { id } = req.params;
     const { nombre, descripcion, area_id, activo } = req.body;
 
+    if (isNaN(id)) {
+        return res.status(400).json({ message: "El ID proporcionado no es válido" });
+    }
+
     try {
-        // Implementamos el COALESCE de tu compa en tu sintaxis para no borrar datos si no se envían
         const result = await sql`
             UPDATE ticket_categorias
             SET nombre = COALESCE(${nombre}, nombre),
@@ -123,10 +153,14 @@ exports.updateCategoria = async (req, res) => {
 };
 
 // =========================
-// ELIMINAR CATEGORÍA - De tu versión (Con escudo protector)
+// ELIMINAR CATEGORÍA (Blindado)
 // =========================
 exports.deleteCategoria = async (req, res) => {
     const { id } = req.params;
+
+    if (isNaN(id)) {
+        return res.status(400).json({ message: "El ID proporcionado no es válido" });
+    }
 
     try {
         const result = await sql`
@@ -141,7 +175,6 @@ exports.deleteCategoria = async (req, res) => {
 
         res.json({ message: "Categoría eliminada con éxito", id: result[0].id });
     } catch (error) {
-        // Protección empresarial de las claves foráneas
         if (error.code === '23503') {
             return res.status(400).json({ 
                 message: "No se puede eliminar la categoría porque ya tiene tickets asociados. Por favor, desactívala en su lugar." 

@@ -1,11 +1,10 @@
-// controllers/rolesController.js
-const {sql} = require("../config/db");
+const { sql } = require("../config/db");
 
 const getRoles = async (req, res) => {
   try {
     const result = await sql`SELECT * FROM roles ORDER BY id`;
-    // En pg, los datos vienen dentro de result.rows
-    res.json(result.rows || result);
+    // Neon devuelve el arreglo directamente, no necesitamos .rows
+    res.json(result);
   } catch (error) {
     console.error("Error obteniendo roles:", error);
     res.status(500).json({ message: "Error obteniendo roles" });
@@ -15,14 +14,18 @@ const getRoles = async (req, res) => {
 const getRoleById = async (req, res) => {
   try {
     const { id } = req.params;
-    const result = await sql.query("SELECT * FROM roles WHERE id = $1", [id]);
     
-    const rows = result.rows || result;
-    if (rows.length === 0) {
+    if (isNaN(id)) {
+        return res.status(400).json({ message: "ID de rol inválido" });
+    }
+
+    const result = await sql`SELECT * FROM roles WHERE id = ${id}`;
+    
+    if (result.length === 0) {
       return res.status(404).json({ message: "Rol no encontrado" });
     }
     
-    res.json(rows[0]);
+    res.json(result[0]);
   } catch (error) {
     console.error("Error obteniendo rol:", error);
     res.status(500).json({ message: "Error obteniendo rol" });
@@ -31,16 +34,15 @@ const getRoleById = async (req, res) => {
 
 const createRole = async (req, res) => {
   try {
-    // 🛡️ MANTENEMOS TUS PERMISOS, NADA DE "NIVELES"
     const { nombre, descripcion, permisos } = req.body;
     
-    const result = await sql.query(
-      "INSERT INTO roles (nombre, descripcion, permisos) VALUES ($1, $2, $3) RETURNING *",
-      [nombre, descripcion, permisos]
-    );
+    const result = await sql`
+      INSERT INTO roles (nombre, descripcion, permisos) 
+      VALUES (${nombre}, ${descripcion}, ${permisos}) 
+      RETURNING *
+    `;
     
-    const rows = result.rows || result;
-    res.status(201).json(rows[0]);
+    res.status(201).json(result[0]);
   } catch (error) {
     console.error("Error creando rol:", error);
     res.status(500).json({ message: "Error creando rol" });
@@ -51,18 +53,25 @@ const updateRole = async (req, res) => {
   try {
     const { id } = req.params;
     const { nombre, descripcion, permisos } = req.body;
+
+    if (isNaN(id)) {
+        return res.status(400).json({ message: "ID de rol inválido" });
+    }
     
-    const result = await sql.query(
-      "UPDATE roles SET nombre=$1, descripcion=$2, permisos=$3 WHERE id=$4 RETURNING *",
-      [nombre, descripcion, permisos, id]
-    );
+    const result = await sql`
+      UPDATE roles 
+      SET nombre = ${nombre}, 
+          descripcion = ${descripcion}, 
+          permisos = ${permisos} 
+      WHERE id = ${id} 
+      RETURNING *
+    `;
     
-    const rows = result.rows || result;
-    if (rows.length === 0) {
+    if (result.length === 0) {
       return res.status(404).json({ message: "Rol no encontrado" });
     }
     
-    res.json(rows[0]);
+    res.json(result[0]);
   } catch (error) {
     console.error("Error actualizando rol:", error);
     res.status(500).json({ message: "Error actualizando rol" });
@@ -72,11 +81,14 @@ const updateRole = async (req, res) => {
 const deleteRole = async (req, res) => {
   try {
     const { id } = req.params;
+
+    if (isNaN(id)) {
+        return res.status(400).json({ message: "ID de rol inválido" });
+    }
     
-    const result = await sql.query("DELETE FROM roles WHERE id = $1 RETURNING id", [id]);
-    const rows = result.rows || result;
+    const result = await sql`DELETE FROM roles WHERE id = ${id} RETURNING id`;
     
-    if (rows.length === 0) {
+    if (result.length === 0) {
         return res.status(404).json({ message: "Rol no encontrado" });
     }
     
