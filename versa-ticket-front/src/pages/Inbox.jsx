@@ -4,7 +4,6 @@ import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
 import TicketComments from '../components/TicketComments';
 
-
 // 1. FUNCIONES Y CONSTANTES ESTÁTICAS FUERA DEL COMPONENTE
 const estadosTicket = [
   { id: 1, nombre: 'Abierto' },
@@ -53,6 +52,28 @@ const getStatusColor = (estado) => {
   return colors[estadoLower] || 'text-gray-600 bg-gray-100';
 };
 
+// Calculadora de SLA
+const calcularEstadoSLA = (fechaLimite, estadoId) => {
+  // IDs 4 (Resuelto) y 5 (Cerrado) detienen el reloj
+  if (!fechaLimite || estadoId === 4 || estadoId === 5) {
+    return { estado: 'inactivo', claseFila: 'bg-white border-gray-200', badge: 'bg-gray-100 text-gray-600', texto: 'Inactivo' };
+  }
+
+  const ahora = new Date();
+  const limite = new Date(fechaLimite);
+  const diferenciaHoras = (limite - ahora) / (1000 * 60 * 60);
+
+  if (diferenciaHoras < 0) {
+    return { estado: 'vencido', claseFila: 'bg-red-50 border-red-300', badge: 'bg-red-200 text-red-800 font-bold', texto: '¡Vencido!' };
+  }
+  
+  if (diferenciaHoras <= 2) {
+    return { estado: 'peligro', claseFila: 'bg-orange-50 border-orange-300', badge: 'bg-orange-200 text-orange-800 font-bold', texto: 'Por vencer' };
+  }
+  
+  return { estado: 'a_tiempo', claseFila: 'bg-white border-gray-200', badge: 'bg-green-100 text-green-800', texto: 'A tiempo' };
+};
+
 // 2. COMPONENTE PRINCIPAL
 const Inbox = () => {
   const { user } = useAuth();
@@ -62,10 +83,10 @@ const Inbox = () => {
   const [updating, setUpdating] = useState(false);
   const [selectedTicketId, setSelectedTicketId] = useState(null); 
   
-  const detailRef = useRef(null); // Ref para hacer scroll en móviles
+  const detailRef = useRef(null);
 
-  const isAdmin = user?.rol_id === 2;
-  const isAgente = user?.rol_id === 3;
+  const isAdmin = user?.rol_id === 2 || user?.rol_id === "Administrador";
+  const isAgente = user?.rol_id === 3 || user?.rol_id === "Agente";
 
   useEffect(() => {
     cargarDatos();
@@ -79,7 +100,9 @@ const Inbox = () => {
 
   const cargarTickets = async () => {
     try {
-      const response = await api.get('/tickets');
+      const endpoint = (isAgente && !isAdmin) ? '/tickets/assigned' : '/tickets';
+      
+      const response = await api.get(endpoint);
       setTickets(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       console.error('Error cargando tickets:', error);
@@ -136,13 +159,13 @@ const Inbox = () => {
     tickets.find(t => t.id === selectedTicketId) || null,
   [tickets, selectedTicketId]);
 
-  // Función para seleccionar un ticket y hacer scroll en celulares
   const handleSelectTicket = (id) => {
     setSelectedTicketId(id);
-    // Pequeño retraso para dar tiempo a que React renderice el detalle
-    setTimeout(() => {
-      detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 100);
+    if (window.innerWidth < 1024) {
+      setTimeout(() => {
+        detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+    }
   };
 
   if (loading) {
@@ -170,34 +193,52 @@ const Inbox = () => {
               No hay tickets
             </div>
           ) : (
-            filteredTickets.map((ticket) => (
-              <div
-                key={ticket.id}
-                onClick={() => handleSelectTicket(ticket.id)}
-                className={`bg-white rounded-lg shadow p-4 cursor-pointer transition-all hover:shadow-md ${
-                  selectedTicketId === ticket.id ? 'ring-2 ring-amber-500' : ''
-                }`}
-              >
-                {/* Agregado gap-2 para evitar que textos muy largos choquen con el badge */}
-                <div className="flex justify-between items-start gap-2 mb-2">
-                  <h3 className="font-semibold text-gray-800 break-words line-clamp-2">{ticket.titulo}</h3>
-                  <span className={`flex-shrink-0 text-xs px-2 py-1 rounded-full ${getPriorityColor(ticket.prioridad_nombre)}`}>
-                    {ticket.prioridad_nombre || 'Media'}
-                  </span>
+            filteredTickets.map((ticket) => {
+              // 🔥 Calculamos el SLA en tiempo real
+              const sla = calcularEstadoSLA(ticket.sla_fecha_limite, ticket.estado_id);
+
+              return (
+                <div
+                  key={ticket.id}
+                  onClick={() => handleSelectTicket(ticket.id)}
+                  // Inyectamos el color de fondo dinámico dependiendo del SLA
+                  className={`rounded-lg shadow border p-4 cursor-pointer transition-all hover:shadow-md ${sla.claseFila} ${
+                    selectedTicketId === ticket.id ? 'ring-2 ring-amber-500' : ''
+                  }`}
+                >
+                  <div className="flex justify-between items-start gap-2 mb-2">
+                    <div className="flex flex-col">
+                      {/* Mostramos el Folio real de la base de datos */}
+                      <span className="text-xs font-mono text-gray-500 mb-1">{ticket.folio || `#${ticket.id}`}</span>
+                      <h3 className="font-semibold text-gray-800 break-words line-clamp-2">{ticket.titulo}</h3>
+                    </div>
+                    
+                    <div className="flex flex-col items-end gap-1">
+                      <span className={`flex-shrink-0 text-xs px-2 py-1 rounded-full ${getPriorityColor(ticket.prioridad_nombre)}`}>
+                        {ticket.prioridad_nombre || 'Media'}
+                      </span>
+                      {/* Mostrar Badge de SLA si el ticket sigue activo */}
+                      {sla.estado !== 'inactivo' && (
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full ${sla.badge}`}>
+                          ⏳ {sla.texto}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <p className="text-sm text-gray-600 line-clamp-2">{ticket.descripcion}</p>
+                  <div className="flex flex-wrap justify-between items-center mt-3 gap-2">
+                    <span className="text-xs text-gray-400">{formatDate(ticket.fecha_creacion)}</span>
+                    <span className={`text-xs px-2 py-1 rounded-full ${getStatusColor(ticket.estado_nombre)}`}>
+                      {ticket.estado_nombre || 'Pendiente'}
+                    </span>
+                  </div>
+                  <div className="mt-2 text-xs text-gray-400 break-words">
+                    👤 {ticket.usuario_nombre || 'Usuario'} 
+                    {ticket.responsable_nombre && ` | 🎧 ${ticket.responsable_nombre}`}
+                  </div>
                 </div>
-                <p className="text-sm text-gray-600 line-clamp-2">{ticket.descripcion}</p>
-                <div className="flex flex-wrap justify-between items-center mt-3 gap-2">
-                  <span className="text-xs text-gray-400">{formatDate(ticket.fecha_creacion)}</span>
-                  <span className={`text-xs px-2 py-1 rounded-full ${getStatusColor(ticket.estado_nombre)}`}>
-                    {ticket.estado_nombre || 'Pendiente'}
-                  </span>
-                </div>
-                <div className="mt-2 text-xs text-gray-400 break-words">
-                  👤 {ticket.usuario_nombre || 'Usuario'} 
-                  {ticket.responsable_nombre && ` | 🎧 ${ticket.responsable_nombre}`}
-                </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
 
@@ -206,12 +247,11 @@ const Inbox = () => {
           {selectedTicket ? (
             <div className="bg-white rounded-lg shadow">
               <div className="p-4 sm:p-6 border-b">
-                {/* flex-col en móvil y md:flex-row en PC */}
                 <div className="flex flex-col md:flex-row justify-between items-start gap-4 md:gap-0 mb-4">
                   <div className="w-full md:w-auto">
                     <h2 className="text-lg sm:text-xl font-bold text-gray-800 break-words">{selectedTicket.titulo}</h2>
-                    <p className="text-sm text-gray-500 mt-1">
-                      #{selectedTicket.id?.toString().padStart(6, '0')}
+                    <p className="text-sm font-mono text-gray-500 mt-1">
+                      {selectedTicket.folio || `#${selectedTicket.id?.toString().padStart(6, '0')}`}
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2 w-full md:w-auto">
@@ -221,9 +261,15 @@ const Inbox = () => {
                     <span className={`text-xs px-3 py-1 rounded-full ${getStatusColor(selectedTicket.estado_nombre)}`}>
                       {selectedTicket.estado_nombre || 'Pendiente'}
                     </span>
+                    {/* Badge de SLA en el encabezado del detalle */}
+                    {calcularEstadoSLA(selectedTicket.sla_fecha_limite, selectedTicket.estado_id).estado !== 'inactivo' && (
+                       <span className={`text-xs px-3 py-1 rounded-full ${calcularEstadoSLA(selectedTicket.sla_fecha_limite, selectedTicket.estado_id).badge}`}>
+                         SLA: {calcularEstadoSLA(selectedTicket.sla_fecha_limite, selectedTicket.estado_id).texto}
+                       </span>
+                    )}
                   </div>
                 </div>
-                <p className="text-sm text-gray-500">📅 {formatDate(selectedTicket.fecha_creacion)}</p>
+                <p className="text-sm text-gray-500">📅 Creado: {formatDate(selectedTicket.fecha_creacion)}</p>
                 <p className="text-sm text-gray-500 mt-1 break-words">👤 Creado por: {selectedTicket.usuario_nombre || 'N/A'}</p>
               </div>
 
@@ -234,8 +280,8 @@ const Inbox = () => {
 
               <div className="p-4 sm:p-6 border-b">
                 <h3 className="font-semibold text-gray-800 mb-3">ℹ️ Información</h3>
-                {/* 1 columna en móvil, 2 columnas en pantallas pequeñas/grandes */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* 3 columnas para incluir el Vencimiento */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="bg-gray-50 rounded-lg p-3">
                     <p className="text-xs text-gray-500">Área</p>
                     <p className="text-sm font-medium">{selectedTicket.area_nombre || 'No asignada'}</p>
@@ -243,6 +289,12 @@ const Inbox = () => {
                   <div className="bg-gray-50 rounded-lg p-3">
                     <p className="text-xs text-gray-500">Categoría</p>
                     <p className="text-sm font-medium">{selectedTicket.categoria_nombre || 'No asignada'}</p>
+                  </div>
+                  <div className={`rounded-lg p-3 ${calcularEstadoSLA(selectedTicket.sla_fecha_limite, selectedTicket.estado_id).claseFila || 'bg-gray-50'}`}>
+                    <p className="text-xs text-gray-500">Fecha de Vencimiento</p>
+                    <p className="text-sm font-medium">
+                      {selectedTicket.sla_fecha_limite ? formatDate(selectedTicket.sla_fecha_limite) : 'No configurado'}
+                    </p>
                   </div>
                 </div>
               </div>

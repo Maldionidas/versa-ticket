@@ -25,6 +25,7 @@ exports.getTickets = async (req, res) => {
         LEFT JOIN ticket_estados e ON t.estado_id = e.id
         LEFT JOIN users u ON t.usuario_id = u.id
         LEFT JOIN users r ON t.responsable_id = r.id
+
         ORDER BY t.id DESC
       `;
         } else {
@@ -157,61 +158,78 @@ exports.createTicket = async (req, res) => {
     const usuario_id = req.user?.id; 
 
     if (!usuario_id) {
-        return res.status(401).json({ message: "No autorizado. Token inválido o expirado." });
+        return res.status(401).json({ message: "No autorizado." });
     }
 
     if (!titulo || !descripcion || !prioridad_id || !area_id) {
         return res.status(400).json({ message: "Campos obligatorios faltantes" });
     }
 
-    const cat_id = categoria_id && categoria_id !== "null" && categoria_id !== "undefined" && categoria_id !== "" ? categoria_id : null;
-    const resp_id = responsable_id && responsable_id !== "null" && responsable_id !== "undefined" && responsable_id !== "" ? responsable_id : null;
+    const cat_id = categoria_id && categoria_id !== "null" && categoria_id !== "" ? categoria_id : null;
+    const resp_id = responsable_id && responsable_id !== "null" && responsable_id !== "" ? responsable_id : null;
     const estado_id = 1; 
 
-    // Solicitamos un cliente exclusivo del Pool para mantener la sesión viva
     const client = await pool.connect();
 
     try {
         await client.query('BEGIN');
 
-        // 1. Insertar Ticket Principal (Sintaxis Postgres: $1, $2, $3...)
+        // 1. Obtenemos el tiempo SLA directo de tu tabla dinámica
+        const prioridadResult = await client.query(
+            `SELECT tiempo_sla FROM ticket_prioridades WHERE id = $1`, 
+            [prioridad_id]
+        );
+        const horasSLA = prioridadResult.rows[0]?.tiempo_sla || 24; // 24h por defecto por si acaso
+        
+        // Calculamos la fecha
+        const slaFechaLimite = new Date();
+        slaFechaLimite.setHours(slaFechaLimite.getHours() + horasSLA);
+
+        // 2. Insertar Ticket (¡Sin Folio! El Trigger de Postgres lo hará)
         const ticketQuery = `
             INSERT INTO tickets 
-            (titulo, descripcion, estado_id, prioridad_id, categoria_id, usuario_id, responsable_id, area_id) 
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
-            RETURNING *
+            (titulo, descripcion, estado_id, prioridad_id, categoria_id, usuario_id, responsable_id, area_id, sla_fecha_limite) 
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
+            RETURNING id, folio; -- Atrapamos lo que generó la BD
         `;
-        const ticketResult = await client.query(ticketQuery, [titulo, descripcion, estado_id, prioridad_id, cat_id, usuario_id, resp_id, area_id]);
+        const ticketResult = await client.query(ticketQuery, [
+            titulo, 
+            descripcion, 
+            estado_id, 
+            prioridad_id, 
+            cat_id, 
+            usuario_id, 
+            resp_id, 
+            area_id,
+            slaFechaLimite.toISOString() 
+        ]);
+        
         const nuevoTicketId = ticketResult.rows[0].id;
+        const folioGenerado = ticketResult.rows[0].folio;
 
-        // 2. Insertar Campos Dinámicos
+        // 3. Insertar Campos Dinámicos
         if (valores_dinamicos) {
-            // EL FIX: Verificamos si es un string antes de parsearlo. 
-            // Si ya es un objeto, lo usamos directamente.
-            let valoresParseados = valores_dinamicos;
-            if (typeof valores_dinamicos === 'string') {
-                valoresParseados = JSON.parse(valores_dinamicos);
-            }
+            let valoresParseados = typeof valores_dinamicos === 'string' ? JSON.parse(valores_dinamicos) : valores_dinamicos;
 
             for (const campo_id of Object.keys(valoresParseados)) {
                 const valor = valoresParseados[campo_id];
                 if (valor !== "" && valor !== null && valor !== false) {
-                    const campoQuery = `INSERT INTO ticket_campos_valores (ticket_id, campo_id, valor) VALUES ($1, $2, $3)`;
-                    await client.query(campoQuery, [nuevoTicketId, campo_id, valor.toString()]);
+                    await client.query(
+                        `INSERT INTO ticket_campos_valores (ticket_id, campo_id, valor) VALUES ($1, $2, $3)`, 
+                        [nuevoTicketId, campo_id, valor.toString()]
+                    );
                 }
             }
         }
 
-        // 3. Insertar Evidencias
+        // 4. Insertar Evidencias
         if (archivos && archivos.length > 0) {
             for (const file of archivos) {
                 const rutaWeb = `/uploads/${file.filename}`;
-                const fileQuery = `
-                    INSERT INTO attachments 
-                    (ticket_id, nombre_archivo, ruta_archivo, tipo_archivo, tamaño, subido_por) 
-                    VALUES ($1, $2, $3, $4, $5, $6)
-                `;
-                await client.query(fileQuery, [nuevoTicketId, file.originalname, rutaWeb, file.mimetype, file.size || 0, usuario_id]);
+                await client.query(
+                    `INSERT INTO attachments (ticket_id, nombre_archivo, ruta_archivo, tipo_archivo, tamaño, subido_por) VALUES ($1, $2, $3, $4, $5, $6)`, 
+                    [nuevoTicketId, file.originalname, rutaWeb, file.mimetype, file.size || 0, usuario_id]
+                );
             }
         }
 
@@ -219,7 +237,8 @@ exports.createTicket = async (req, res) => {
 
         res.status(201).json({
             message: "Ticket creado exitosamente",
-            ticketId: nuevoTicketId
+            ticketId: nuevoTicketId,
+            folio: folioGenerado // Se lo mandamos al Frontend
         });
 
     } catch (error) {
@@ -227,7 +246,6 @@ exports.createTicket = async (req, res) => {
         console.error("Error en la transacción de creación de ticket:", error);
         res.status(500).json({ message: "Error creando ticket", error: error.message });
     } finally {
-        // Liberar el cliente de vuelta al pool
         client.release();
     }
 };
