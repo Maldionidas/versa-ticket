@@ -1,3 +1,4 @@
+// src/App.jsx
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, useOutletContext } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -12,8 +13,8 @@ import { TicketSidebar } from './components/sideBar';
 import { CreateTicketForm } from './pages/createTicket';
 import AdminPanel from './pages/panelAdmin';
 
-// ----------------------------------------------------------------------
-// 1. LAYOUT PRINCIPAL (Blindado)
+
+// 1. LAYOUT PRINCIPAL
 // ----------------------------------------------------------------------
 const MainLayout = () => {
     const auth = useAuth(); // Obtenemos el objeto completo primero
@@ -39,8 +40,7 @@ const MainLayout = () => {
     );
 };
 
-// ----------------------------------------------------------------------
-// 2. RUTA ADMIN (Blindada)
+// 2. RUTA ADMIN
 // ----------------------------------------------------------------------
 const AdminRoute = () => {
     const context = useOutletContext();
@@ -59,7 +59,6 @@ const AdminRoute = () => {
     return <AdminPanel />;
 };
 
-// ----------------------------------------------------------------------
 // 3. COMPONENTE APP
 // ----------------------------------------------------------------------
 function App() {

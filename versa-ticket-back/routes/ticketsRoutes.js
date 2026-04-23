@@ -23,7 +23,8 @@ const storage = multer.diskStorage({
 });
 
 const upload = multer({ storage: storage });
-
+// ruta para cerrar con firma
+router.put('/:id/firmar', verifyToken, ticketsController.closeTicketSign);
 // 2. EL CANDADO PRINCIPAL
 // Exige que el usuario tenga un token válido para acceder a cualquier ruta
 router.use(verifyToken);

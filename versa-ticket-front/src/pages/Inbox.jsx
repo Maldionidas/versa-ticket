@@ -3,6 +3,7 @@ import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
 import TicketComments from '../components/TicketComments';
+import SignatureModal from '../components/modalFirmas';
 
 // 1. FUNCIONES Y CONSTANTES ESTÁTICAS FUERA DEL COMPONENTE
 const estadosTicket = [
@@ -66,11 +67,11 @@ const calcularEstadoSLA = (fechaLimite, estadoId) => {
   if (diferenciaHoras < 0) {
     return { estado: 'vencido', claseFila: 'bg-red-50 border-red-300', badge: 'bg-red-200 text-red-800 font-bold', texto: '¡Vencido!' };
   }
-  
+
   if (diferenciaHoras <= 2) {
     return { estado: 'peligro', claseFila: 'bg-orange-50 border-orange-300', badge: 'bg-orange-200 text-orange-800 font-bold', texto: 'Por vencer' };
   }
-  
+
   return { estado: 'a_tiempo', claseFila: 'bg-white border-gray-200', badge: 'bg-green-100 text-green-800', texto: 'A tiempo' };
 };
 
@@ -81,8 +82,9 @@ const Inbox = () => {
   const [agentes, setAgentes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
-  const [selectedTicketId, setSelectedTicketId] = useState(null); 
-  
+  const [selectedTicketId, setSelectedTicketId] = useState(null);
+  const [showSignatureModal, setShowSignatureModal] = useState(false);
+
   const detailRef = useRef(null);
 
   const isAdmin = user?.rol_id === 2 || user?.rol_id === "Administrador";
@@ -101,7 +103,7 @@ const Inbox = () => {
   const cargarTickets = async () => {
     try {
       const endpoint = (isAgente && !isAdmin) ? '/tickets/assigned' : '/tickets';
-      
+
       const response = await api.get(endpoint);
       setTickets(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
@@ -124,11 +126,11 @@ const Inbox = () => {
     setUpdating(true);
     try {
       await api.put(`/tickets/${ticketId}`, { responsable_id: agenteId || null });
-      alert('✅ Agente asignado correctamente');
-      await cargarTickets(); 
+      alert('Agente asignado correctamente');
+      await cargarTickets();
     } catch (error) {
       const mensaje = error.response?.data?.message || 'Error al asignar agente';
-      alert(`❌ ${mensaje}`);
+      alert(`${mensaje}`);
     } finally {
       setUpdating(false);
     }
@@ -138,11 +140,11 @@ const Inbox = () => {
     setUpdating(true);
     try {
       await api.put(`/tickets/${ticketId}`, { estado_id: nuevoEstadoId });
-      alert('✅ Estado actualizado correctamente');
-      await cargarTickets(); 
+      alert('Estado actualizado correctamente');
+      await cargarTickets();
     } catch (error) {
       const mensaje = error.response?.data?.message || 'Error al actualizar estado';
-      alert(`❌ ${mensaje}`);
+      alert(`${mensaje}`);
     } finally {
       setUpdating(false);
     }
@@ -155,9 +157,9 @@ const Inbox = () => {
     return tickets.filter(t => t.usuario_id === user?.id);
   }, [tickets, isAdmin, isAgente, user?.id]);
 
-  const selectedTicket = useMemo(() => 
+  const selectedTicket = useMemo(() =>
     tickets.find(t => t.id === selectedTicketId) || null,
-  [tickets, selectedTicketId]);
+    [tickets, selectedTicketId]);
 
   const handleSelectTicket = (id) => {
     setSelectedTicketId(id);
@@ -167,6 +169,8 @@ const Inbox = () => {
       }, 100);
     }
   };
+
+  
 
   if (loading) {
     return (
@@ -202,9 +206,8 @@ const Inbox = () => {
                   key={ticket.id}
                   onClick={() => handleSelectTicket(ticket.id)}
                   // Inyectamos el color de fondo dinámico dependiendo del SLA
-                  className={`rounded-lg shadow border p-4 cursor-pointer transition-all hover:shadow-md ${sla.claseFila} ${
-                    selectedTicketId === ticket.id ? 'ring-2 ring-amber-500' : ''
-                  }`}
+                  className={`rounded-lg shadow border p-4 cursor-pointer transition-all hover:shadow-md ${sla.claseFila} ${selectedTicketId === ticket.id ? 'ring-2 ring-amber-500' : ''
+                    }`}
                 >
                   <div className="flex justify-between items-start gap-2 mb-2">
                     <div className="flex flex-col">
@@ -212,7 +215,7 @@ const Inbox = () => {
                       <span className="text-xs font-mono text-gray-500 mb-1">{ticket.folio || `#${ticket.id}`}</span>
                       <h3 className="font-semibold text-gray-800 break-words line-clamp-2">{ticket.titulo}</h3>
                     </div>
-                    
+
                     <div className="flex flex-col items-end gap-1">
                       <span className={`flex-shrink-0 text-xs px-2 py-1 rounded-full ${getPriorityColor(ticket.prioridad_nombre)}`}>
                         {ticket.prioridad_nombre || 'Media'}
@@ -233,7 +236,7 @@ const Inbox = () => {
                     </span>
                   </div>
                   <div className="mt-2 text-xs text-gray-400 break-words">
-                    👤 {ticket.usuario_nombre || 'Usuario'} 
+                    👤 {ticket.usuario_nombre || 'Usuario'}
                     {ticket.responsable_nombre && ` | 🎧 ${ticket.responsable_nombre}`}
                   </div>
                 </div>
@@ -263,9 +266,9 @@ const Inbox = () => {
                     </span>
                     {/* Badge de SLA en el encabezado del detalle */}
                     {calcularEstadoSLA(selectedTicket.sla_fecha_limite, selectedTicket.estado_id).estado !== 'inactivo' && (
-                       <span className={`text-xs px-3 py-1 rounded-full ${calcularEstadoSLA(selectedTicket.sla_fecha_limite, selectedTicket.estado_id).badge}`}>
-                         SLA: {calcularEstadoSLA(selectedTicket.sla_fecha_limite, selectedTicket.estado_id).texto}
-                       </span>
+                      <span className={`text-xs px-3 py-1 rounded-full ${calcularEstadoSLA(selectedTicket.sla_fecha_limite, selectedTicket.estado_id).badge}`}>
+                        SLA: {calcularEstadoSLA(selectedTicket.sla_fecha_limite, selectedTicket.estado_id).texto}
+                      </span>
                     )}
                   </div>
                 </div>
@@ -334,13 +337,18 @@ const Inbox = () => {
                     {estadosTicket.map((estado) => (
                       <button
                         key={estado.id}
-                        onClick={() => actualizarEstado(selectedTicket.id, estado.id)}
+                        onClick={() => {
+                          if (estado.id === 5) {
+                            setShowSignatureModal(true); // ¡Abrimos el modal para firmar!
+                          } else {
+                            actualizarEstado(selectedTicket.id, estado.id); // Flujo normal
+                          }
+                        }}
                         disabled={updating}
-                        className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-medium transition whitespace-nowrap ${
-                          selectedTicket.estado_id === estado.id
-                            ? 'bg-amber-500 text-white'
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                        }`}
+                        className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-medium transition whitespace-nowrap ${selectedTicket.estado_id === estado.id
+                          ? 'bg-amber-500 text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
                       >
                         {estado.nombre}
                       </button>
@@ -348,11 +356,21 @@ const Inbox = () => {
                   </div>
                 </div>
               )}
+              {showSignatureModal && (
+                <SignatureModal
+                  ticketId={selectedTicket.id}
+                  onClose={() => setShowSignatureModal(false)}
+                  onSuccess={() => {
+                    setShowSignatureModal(false);
+                    cargarTickets();
+                  }}
+                />
+              )}
 
               {/* Sección de comentarios */}
               <div className="border-t">
-                <TicketComments 
-                  ticketId={selectedTicket.id} 
+                <TicketComments
+                  ticketId={selectedTicket.id}
                   ticketEstadoId={selectedTicket.estado_id}
                   ticketEstadoNombre={selectedTicket.estado_nombre}
                 />
@@ -370,6 +388,7 @@ const Inbox = () => {
             </div>
           )}
         </div>
+
       </div>
     </div>
   );

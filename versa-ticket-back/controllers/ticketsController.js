@@ -1,4 +1,6 @@
 const {sql, pool} = require("../config/db");
+const fs = require('fs');
+const path = require('path');
 
 // ==========================================
 // 1. OBTENER TODOS LOS TICKETS (Con filtros por rol)
@@ -299,5 +301,60 @@ exports.deleteTicket = async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: "Error eliminando ticket" });
+    }
+};
+
+// ==========================================
+// 7. Firmar ticket (agentes y admin pueden hacerlo)
+// ==========================================
+exports.closeTicketSign = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { firma_base64 } = req.body;
+
+        if (!firma_base64) {
+            return res.status(400).json({ message: "La firma es obligatoria para cerrar el ticket." });
+        }
+
+        // 1. Limpiamos el string de Base64
+        const base64Data = firma_base64.replace(/^data:image\/png;base64,/, "");
+        
+        // 2. Creamos un nombre único
+        const fileName = `firma_tkt_${id}_${Date.now()}.png`;
+        
+        // 3. Definimos el directorio de destino
+        const uploadDir = path.join(__dirname, '../uploads');
+
+        // Si la carpeta 'uploads' no existe, la creamos automáticamente
+        if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+        }
+
+        // 4. Guardamos el archivo físicamente
+        const filePath = path.join(uploadDir, fileName);
+        fs.writeFileSync(filePath, base64Data, 'base64');
+
+        // 5. La ruta web que va a la base de datos
+        const rutaWeb = `/uploads/${fileName}`;
+
+        // 6. Actualizamos el estado y guardamos la ruta
+        const result = await sql`
+            UPDATE tickets 
+            SET estado_id = 5, 
+                firma_representante = ${rutaWeb},
+                fecha_cierre = CURRENT_TIMESTAMP
+            WHERE id = ${id}
+            RETURNING *
+        `;
+
+        res.json({
+            message: "Ticket cerrado y firmado exitosamente",
+            ticket: result[0]
+        });
+
+    } catch (error) {
+        // AQUÍ ES DONDE IMPRIME EL ERROR REAL
+        console.error("Error CRÍTICO al guardar la firma:", error);
+        res.status(500).json({ message: "Error interno al procesar la firma" });
     }
 };
