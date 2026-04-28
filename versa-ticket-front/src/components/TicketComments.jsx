@@ -117,8 +117,8 @@ const TicketComments = ({ ticketId, ticketEstadoId }) => {
           <div className="text-center text-gray-400 py-4">No hay comentarios aún.</div>
         ) : (
           comments.map((comment) => {
-            // 🔴 LA MAGIA ESTÁ AQUÍ: Evaluamos si NO está cerrado (!isClosed) 
-            // Y si eres el admin (2) o el dueño del comentario. 
+            // Evaluamos si NO está cerrado (!isClosed) 
+            // si eres el admin (2) o el dueño del comentario. 
             // Si el ticket está cerrado, canDelete será FALSO y el basurero no se renderiza.
             const isAdmin = Number(user?.rol_id) === 2;
             const isOwner = Number(user?.id) === Number(comment.usuario_id);

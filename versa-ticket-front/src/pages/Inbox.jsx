@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
 import TicketComments from '../components/TicketComments';
 import SignatureModal from '../components/modalFirmas';
+import { ArrowLeft, UploadCloud, X, Paperclip } from 'lucide-react'
 
 // 1. FUNCIONES Y CONSTANTES ESTÁTICAS FUERA DEL COMPONENTE
 const estadosTicket = [
@@ -84,6 +85,7 @@ const Inbox = () => {
   const [updating, setUpdating] = useState(false);
   const [selectedTicketId, setSelectedTicketId] = useState(null);
   const [showSignatureModal, setShowSignatureModal] = useState(false);
+  const [imagenAmpliada, setImagenAmpliada] = useState(null);
 
   const detailRef = useRef(null);
 
@@ -170,7 +172,7 @@ const Inbox = () => {
     }
   };
 
-  
+
 
   if (loading) {
     return (
@@ -198,7 +200,7 @@ const Inbox = () => {
             </div>
           ) : (
             filteredTickets.map((ticket) => {
-              // 🔥 Calculamos el SLA en tiempo real
+              // Calculamos el SLA en tiempo real
               const sla = calcularEstadoSLA(ticket.sla_fecha_limite, ticket.estado_id);
 
               return (
@@ -329,6 +331,7 @@ const Inbox = () => {
                 </div>
               )}
 
+
               {/* Actualizar Estado */}
               {(isAdmin || isAgente) && (
                 <div className="p-4 sm:p-6 border-b">
@@ -356,6 +359,27 @@ const Inbox = () => {
                   </div>
                 </div>
               )}
+              {/* ZONA DE FIRMA DE CIERRE */}
+              {selectedTicket.estado_id === 5 && selectedTicket.firma_representante && (
+                <div className="mt-8 mb-5 p-5 border-2 border-dashed border-gray-300 rounded-xl bg-gray-50/50 flex flex-col items-center justify-center max-w-sm mx-auto">
+                  <h4 className="text-sm font-bold text-gray-800 uppercase tracking-wider mb-3">
+                    Firma de Conformidad
+                  </h4>
+                  <div className="bg-white p-2 rounded-lg shadow-sm border border-gray-100 w-full flex justify-center">
+                    <img
+                      src={selectedTicket.firma_representante}
+                      alt="Firma del Representante"
+                      className="h-28 w-auto object-contain filter contrast-125"
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500 mt-3 font-medium">
+                    Ticket cerrado formalmente el {formatDate(selectedTicket.fecha_cierre)}
+                  </p>
+
+                </div>
+
+              )}
+
               {showSignatureModal && (
                 <SignatureModal
                   ticketId={selectedTicket.id}
@@ -367,6 +391,7 @@ const Inbox = () => {
                 />
               )}
 
+
               {/* Sección de comentarios */}
               <div className="border-t">
                 <TicketComments
@@ -375,6 +400,63 @@ const Inbox = () => {
                   ticketEstadoNombre={selectedTicket.estado_nombre}
                 />
               </div>
+
+              {/* ZONA DE EVIDENCIAS */}
+              {selectedTicket.attachments && selectedTicket.attachments.length > 0 && (
+                <div className="mb-3 mx-5">
+                  <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                    <Paperclip className="h-4 w-4" />
+                    Evidencias Adjuntas
+                  </h4>
+                  <div className="flex flex-wrap gap-3">
+                    {selectedTicket.attachments.map((file, idx) => (
+                      <button
+                        key={idx}
+                        // Al dar clic, guardamos la URL de esta foto en el estado
+                        onClick={() => setImagenAmpliada(file.ruta_archivo)}
+                        className="relative group focus:outline-none"
+                      >
+                        <img
+                          src={file.ruta_archivo}
+                          alt={`Evidencia ${idx + 1}`}
+                          className="h-24 w-24 object-cover rounded-lg shadow-sm border border-gray-200 transition-transform transform group-hover:scale-105 cursor-zoom-in"
+                        />
+                        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition-all rounded-lg"></div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {/*visor de imagen */}
+              {imagenAmpliada && (
+                <div
+                  className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex justify-center items-center p-4"
+                  // Si dan clic en lo negro oscuro, cerramos la imagen
+                  onClick={() => setImagenAmpliada(null)}
+                >
+                  <div className="relative max-w-5xl max-h-[90vh] w-full flex justify-center items-center">
+
+                    {/* Botón de cerrar (X) flotante */}
+                    <button
+                      onClick={() => setImagenAmpliada(null)}
+                      className="absolute -top-12 right-0 text-white/70 hover:text-white p-2 transition-colors"
+                      title="Cerrar imagen"
+                    >
+                      <X className="h-8 w-8" />
+                    </button>
+
+                    {/* La imagen en tamaño gigante */}
+                    <img
+                      src={imagenAmpliada}
+                      alt="Evidencia ampliada"
+                      className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl"
+                      // si dan clic DENTRO de la foto, se cierre el modal
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  </div>
+                </div>
+              )}
+
 
               {/* Footer */}
               <div className="p-4 bg-gray-50 rounded-b-lg border-t">

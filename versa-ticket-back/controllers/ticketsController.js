@@ -1,6 +1,7 @@
-const {sql, pool} = require("../config/db");
+const { sql, pool } = require("../config/db");
 const fs = require('fs');
 const path = require('path');
+const { cloudinary } = require("../config/cloudinary");
 
 // ==========================================
 // 1. OBTENER TODOS LOS TICKETS (Con filtros por rol)
@@ -19,7 +20,11 @@ exports.getTickets = async (req, res) => {
                a.nombre as area_nombre,
                e.nombre as estado_nombre,
                u.nombre as usuario_nombre,
-               r.nombre as responsable_nombre
+               r.nombre as responsable_nombre,
+               COALESCE(
+                json_agg(at.*) FILTER (WHERE at.id IS NOT NULL), 
+                '[]'
+                ) AS attachments
         FROM tickets t
         LEFT JOIN ticket_prioridades p ON t.prioridad_id = p.id
         LEFT JOIN ticket_categorias c ON t.categoria_id = c.id
@@ -27,7 +32,9 @@ exports.getTickets = async (req, res) => {
         LEFT JOIN ticket_estados e ON t.estado_id = e.id
         LEFT JOIN users u ON t.usuario_id = u.id
         LEFT JOIN users r ON t.responsable_id = r.id
+        LEFT JOIN attachments at ON t.id = at.ticket_id
 
+        GROUP BY t.id, p.nombre, c.nombre, a.nombre, e.nombre, u.nombre, r.nombre
         ORDER BY t.id DESC
       `;
         } else {
@@ -38,14 +45,20 @@ exports.getTickets = async (req, res) => {
                c.nombre as categoria_nombre,
                a.nombre as area_nombre,
                e.nombre as estado_nombre,
-               u.nombre as usuario_nombre
+               u.nombre as usuario_nombre,
+                COALESCE(
+                json_agg(at.*) FILTER (WHERE at.id IS NOT NULL), 
+                '[]'
+                ) AS attachments
         FROM tickets t
         LEFT JOIN ticket_prioridades p ON t.prioridad_id = p.id
         LEFT JOIN ticket_categorias c ON t.categoria_id = c.id
         LEFT JOIN areas a ON t.area_id = a.id
         LEFT JOIN ticket_estados e ON t.estado_id = e.id
         LEFT JOIN users u ON t.usuario_id = u.id
+        LEFT JOIN attachments at ON t.id = at.ticket_id
         WHERE t.usuario_id = ${userId}
+        GROUP BY t.id, p.nombre, c.nombre, a.nombre, e.nombre, u.nombre, r.nombre
         ORDER BY t.id DESC
       `;
         }
@@ -67,7 +80,7 @@ exports.getAssignedTickets = async (req, res) => {
 
         let result;
 
-        // 🔥 CORREGIDO: ID 2 es el Administrador
+        // ID 2 es el Administrador
         if (userRole === 2 || userRole === "Administrador") {
             // Admin ve todos los tickets con alguien asignado
             result = await sql`
@@ -76,14 +89,20 @@ exports.getAssignedTickets = async (req, res) => {
                c.nombre as categoria_nombre,
                a.nombre as area_nombre,
                e.nombre as estado_nombre,
-               u.nombre as usuario_nombre
+               u.nombre as usuario_nombre,
+               COALESCE(
+                json_agg(at.*) FILTER (WHERE at.id IS NOT NULL), 
+                '[]'
+                ) AS attachments
         FROM tickets t
         LEFT JOIN ticket_prioridades p ON t.prioridad_id = p.id
         LEFT JOIN ticket_categorias c ON t.categoria_id = c.id
         LEFT JOIN areas a ON t.area_id = a.id
         LEFT JOIN ticket_estados e ON t.estado_id = e.id
         LEFT JOIN users u ON t.usuario_id = u.id
+        LEFT JOIN attachments at ON t.id = at.ticket_id
         WHERE t.responsable_id IS NOT NULL
+        GROUP BY t.id, p.nombre, c.nombre, a.nombre, e.nombre, u.nombre, r.nombre
         ORDER BY t.id DESC
       `;
         } else {
@@ -94,14 +113,20 @@ exports.getAssignedTickets = async (req, res) => {
                c.nombre as categoria_nombre,
                a.nombre as area_nombre,
                e.nombre as estado_nombre,
-               u.nombre as usuario_nombre
+               u.nombre as usuario_nombre,
+               COALESCE(
+                json_agg(at.*) FILTER (WHERE at.id IS NOT NULL), 
+                '[]'
+                ) AS attachments
         FROM tickets t
         LEFT JOIN ticket_prioridades p ON t.prioridad_id = p.id
         LEFT JOIN ticket_categorias c ON t.categoria_id = c.id
         LEFT JOIN areas a ON t.area_id = a.id
         LEFT JOIN ticket_estados e ON t.estado_id = e.id
         LEFT JOIN users u ON t.usuario_id = u.id
+        LEFT JOIN attachments at ON t.id = at.ticket_id
         WHERE t.responsable_id = ${userId}
+        OGROUP BY t.id, p.nombre, c.nombre, a.nombre, e.nombre, u.nombre, r.nombre
         ORDER BY t.id DESC
       `;
         }
@@ -130,14 +155,21 @@ exports.getTicketById = async (req, res) => {
              c.nombre as categoria_nombre,
              a.nombre as area_nombre,
              e.nombre as estado_nombre,
-             u.nombre as usuario_nombre
+             u.nombre as usuario_nombre,
+             COALESCE(
+                json_agg(at.*) FILTER (WHERE at.id IS NOT NULL), 
+                '[]'
+                ) AS attachments
       FROM tickets t
       LEFT JOIN ticket_prioridades p ON t.prioridad_id = p.id
       LEFT JOIN ticket_categorias c ON t.categoria_id = c.id
       LEFT JOIN areas a ON t.area_id = a.id
       LEFT JOIN ticket_estados e ON t.estado_id = e.id
       LEFT JOIN users u ON t.usuario_id = u.id
+      LEFT JOIN attachments at ON t.id = at.ticket_id
       WHERE t.id = ${id}
+      GROUP BY t.id, p.nombre, c.nombre, a.nombre, e.nombre, u.nombre, r.nombre
+
     `;
 
         if (result.length === 0) {
@@ -156,8 +188,8 @@ exports.getTicketById = async (req, res) => {
 // ==========================================
 exports.createTicket = async (req, res) => {
     let { titulo, descripcion, prioridad_id, categoria_id, area_id, responsable_id, valores_dinamicos } = req.body;
-    const archivos = req.files; 
-    const usuario_id = req.user?.id; 
+    const archivos = req.files;
+    const usuario_id = req.user?.id;
 
     if (!usuario_id) {
         return res.status(401).json({ message: "No autorizado." });
@@ -169,7 +201,7 @@ exports.createTicket = async (req, res) => {
 
     const cat_id = categoria_id && categoria_id !== "null" && categoria_id !== "" ? categoria_id : null;
     const resp_id = responsable_id && responsable_id !== "null" && responsable_id !== "" ? responsable_id : null;
-    const estado_id = 1; 
+    const estado_id = 1;
 
     const client = await pool.connect();
 
@@ -178,11 +210,11 @@ exports.createTicket = async (req, res) => {
 
         // 1. Obtenemos el tiempo SLA directo de tu tabla dinámica
         const prioridadResult = await client.query(
-            `SELECT tiempo_sla FROM ticket_prioridades WHERE id = $1`, 
+            `SELECT tiempo_sla FROM ticket_prioridades WHERE id = $1`,
             [prioridad_id]
         );
         const horasSLA = prioridadResult.rows[0]?.tiempo_sla || 24; // 24h por defecto por si acaso
-        
+
         // Calculamos la fecha
         const slaFechaLimite = new Date();
         slaFechaLimite.setHours(slaFechaLimite.getHours() + horasSLA);
@@ -195,17 +227,17 @@ exports.createTicket = async (req, res) => {
             RETURNING id, folio; -- Atrapamos lo que generó la BD
         `;
         const ticketResult = await client.query(ticketQuery, [
-            titulo, 
-            descripcion, 
-            estado_id, 
-            prioridad_id, 
-            cat_id, 
-            usuario_id, 
-            resp_id, 
+            titulo,
+            descripcion,
+            estado_id,
+            prioridad_id,
+            cat_id,
+            usuario_id,
+            resp_id,
             area_id,
-            slaFechaLimite.toISOString() 
+            slaFechaLimite.toISOString()
         ]);
-        
+
         const nuevoTicketId = ticketResult.rows[0].id;
         const folioGenerado = ticketResult.rows[0].folio;
 
@@ -217,7 +249,7 @@ exports.createTicket = async (req, res) => {
                 const valor = valoresParseados[campo_id];
                 if (valor !== "" && valor !== null && valor !== false) {
                     await client.query(
-                        `INSERT INTO ticket_campos_valores (ticket_id, campo_id, valor) VALUES ($1, $2, $3)`, 
+                        `INSERT INTO ticket_campos_valores (ticket_id, campo_id, valor) VALUES ($1, $2, $3)`,
                         [nuevoTicketId, campo_id, valor.toString()]
                     );
                 }
@@ -227,9 +259,13 @@ exports.createTicket = async (req, res) => {
         // 4. Insertar Evidencias
         if (archivos && archivos.length > 0) {
             for (const file of archivos) {
-                const rutaWeb = `/uploads/${file.filename}`;
+                const rutaWeb = file.path;
+                if (!rutaWeb) {
+                    console.log("¡Cloudinary no devolvió la ruta para el archivo:", file.originalname);
+                    console.log("Objeto file completo:", file);
+                }
                 await client.query(
-                    `INSERT INTO attachments (ticket_id, nombre_archivo, ruta_archivo, tipo_archivo, tamaño, subido_por) VALUES ($1, $2, $3, $4, $5, $6)`, 
+                    `INSERT INTO attachments (ticket_id, nombre_archivo, ruta_archivo, tipo_archivo, tamaño, subido_por) VALUES ($1, $2, $3, $4, $5, $6)`,
                     [nuevoTicketId, file.originalname, rutaWeb, file.mimetype, file.size || 0, usuario_id]
                 );
             }
@@ -312,37 +348,25 @@ exports.closeTicketSign = async (req, res) => {
         const { id } = req.params;
         const { firma_base64 } = req.body;
 
+        // Validamos que el ticket exista
         if (!firma_base64) {
             return res.status(400).json({ message: "La firma es obligatoria para cerrar el ticket." });
         }
+        //subir base64 a cloudinary
+        const uploadResponse = await cloudinary.uploader.upload(firma_base64, {
+            folder: "ticket_firmas_firmas",
+            public_id: `firma_tkt_${id}_${Date.now()}`
+        });
+        //url de la imagen subida
+        const rutaWeb = uploadResponse.secure_url;
 
-        // 1. Limpiamos el string de Base64
-        const base64Data = firma_base64.replace(/^data:image\/png;base64,/, "");
-        
-        // 2. Creamos un nombre único
-        const fileName = `firma_tkt_${id}_${Date.now()}.png`;
-        
-        // 3. Definimos el directorio de destino
-        const uploadDir = path.join(__dirname, '../uploads');
 
-        // Si la carpeta 'uploads' no existe, la creamos automáticamente
-        if (!fs.existsSync(uploadDir)) {
-            fs.mkdirSync(uploadDir, { recursive: true });
-        }
-
-        // 4. Guardamos el archivo físicamente
-        const filePath = path.join(uploadDir, fileName);
-        fs.writeFileSync(filePath, base64Data, 'base64');
-
-        // 5. La ruta web que va a la base de datos
-        const rutaWeb = `/uploads/${fileName}`;
-
-        // 6. Actualizamos el estado y guardamos la ruta
+        // Actualizamos el estado y guardamos la ruta
         const result = await sql`
             UPDATE tickets 
             SET estado_id = 5, 
                 firma_representante = ${rutaWeb},
-                fecha_cierre = CURRENT_TIMESTAMP
+                fecha_cierre = CURRENT_TIMESTAMP AT TIME ZONE 'UTC' AT TIME ZONE 'America/Mexico_City'
             WHERE id = ${id}
             RETURNING *
         `;
@@ -353,7 +377,6 @@ exports.closeTicketSign = async (req, res) => {
         });
 
     } catch (error) {
-        // AQUÍ ES DONDE IMPRIME EL ERROR REAL
         console.error("Error CRÍTICO al guardar la firma:", error);
         res.status(500).json({ message: "Error interno al procesar la firma" });
     }

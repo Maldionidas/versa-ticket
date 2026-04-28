@@ -3,8 +3,11 @@ import { ArrowLeft, UploadCloud, X, Paperclip } from 'lucide-react'
 import mascot from '../assets/mascota.png'
 import api from '../api/axios'
 import { useAuth } from '../context/AuthContext'
+import { useNavigate } from 'react-router-dom'
+
 
 export function CreateTicketForm() {
+    const navigate = useNavigate()
     const { user } = useAuth()
     const [areas, setAreas] = useState([])
     const [prioridades, setPrioridades] = useState([])
@@ -62,7 +65,7 @@ export function CreateTicketForm() {
                 ])
 
                 setCategorias(resCat.data)
-                
+
                 // 🛡️ EL BLINDAJE: Nos aseguramos de que sea un arreglo
                 const camposArray = Array.isArray(resCampos.data) ? resCampos.data : [];
                 setCamposDinamicos(camposArray)
@@ -112,31 +115,48 @@ export function CreateTicketForm() {
         e.preventDefault()
 
         try {
-            const payload = {
-                titulo: formData.titulo,
-                descripcion: formData.descripcion,
-                prioridad_id: Number(formData.prioridad_id),
-                categoria_id: Number(formData.categoria_id),
-                area_id: Number(formData.area_id),
-                estado_id: 1, 
-                usuario_id: user?.id,
-                valores_dinamicos: valoresDinamicos
-            };
+            //1. crear contenedor de formulario
+            const formDataPayload = new FormData();
+            //2. agregar campos al contenedor
+            formDataPayload.append('titulo', formData.titulo);
+            formDataPayload.append('descripcion', formData.descripcion);
+            formDataPayload.append('prioridad_id', Number(formData.prioridad_id));
+            formDataPayload.append('categoria_id', Number(formData.categoria_id));
+            formDataPayload.append('area_id', Number(formData.area_id));
+            formDataPayload.append('estado_id', 1);
+            formDataPayload.append('usuario_id', user?.id); // Asignamos el ticket al usuario que lo crea
 
-            // Enviamos JSON normal
-            const response = await api.post("/tickets", payload)
 
-            console.log("Ticket creado:", response.data)
-            alert("Ticket creado exitosamente!")
+            //convertir a string para procesar los datos
+            if(valoresDinamicos){
+                formDataPayload.append('campos_dinamicos', JSON.stringify(valoresDinamicos));
+            }
+            // agregar archivos al contenedor
+            archivos.forEach((file) => {
+                formDataPayload.append('archivos', file);
+            });
 
-            // Limpieza
-            setFormData({ titulo: '', descripcion: '', prioridad_id: '2', categoria_id: '', area_id: '' })
-            setArchivos([]) 
-            setValoresDinamicos({})
+            //4. enviar formulario con axios
+            const response = await api.post('/tickets', formDataPayload, {
+                headers: {
+                    'Content-Type': 'multipart/form-data'
+                }
+            });
+
+            console.log("Ticket creado en Cloudinary:", response.data);
+            alert("Ticket con evidencias creados exitosamente!");
+
+            // Limpieza del formulario
+            setFormData({ titulo: '', descripcion: '', prioridad_id: '2', categoria_id: '', area_id: '' });
+            setArchivos([]);
+            setValoresDinamicos({});
+
+            // lo mandamos a la bandeja
+            navigate('/inbox');
 
         } catch (error) {
             console.error("Error creando ticket:", error)
-            alert(error.response?.data?.message || "Error creando ticket")
+            alert(error.response?.data?.message || "Error al subir el ticket a la nube")
         }
     }
 
@@ -178,21 +198,12 @@ export function CreateTicketForm() {
                                     className="w-full rounded-lg border border-input bg-white px-4 py-2.5 text-sm placeholder:text-muted-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20"
                                 />
                             </div>
-
                             <div className="space-y-2">
-                                <label htmlFor="descripcion" className="block text-sm font-medium text-foreground">
-                                    Descripción <span className="text-destructive">*</span>
-                                </label>
-                                <textarea
-                                    id="descripcion"
-                                    name="descripcion"
-                                    placeholder="Describe el problema con el mayor detalle posible..."
-                                    rows={4}
-                                    value={formData.descripcion}
-                                    onChange={handleChange}
-                                    required
-                                    className="w-full rounded-lg border border-input bg-white px-4 py-2.5 text-sm placeholder:text-muted-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20 resize-none"
-                                />
+                                <label htmlFor="area_id" className="block text-sm font-medium text-foreground">Área <span className="text-destructive">*</span></label>
+                                <select id="area_id" name="area_id" value={formData.area_id} onChange={handleChange} required className="w-full rounded-lg border border-input bg-white px-4 py-2.5 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20">
+                                    <option value="">Selecciona el área</option>
+                                    {areas.map((a) => (<option key={a.id} value={a.id}>{a.nombre}</option>))}
+                                </select>
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">
@@ -211,13 +222,6 @@ export function CreateTicketForm() {
                                 </div>
                             </div>
 
-                            <div className="space-y-2">
-                                <label htmlFor="area_id" className="block text-sm font-medium text-foreground">Área <span className="text-destructive">*</span></label>
-                                <select id="area_id" name="area_id" value={formData.area_id} onChange={handleChange} required className="w-full rounded-lg border border-input bg-white px-4 py-2.5 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20">
-                                    <option value="">Selecciona el área</option>
-                                    {areas.map((a) => (<option key={a.id} value={a.id}>{a.nombre}</option>))}
-                                </select>
-                            </div>
 
                             {camposDinamicos.length > 0 && (
                                 <div className="space-y-4 border-t pt-4 mt-4">
@@ -266,6 +270,21 @@ export function CreateTicketForm() {
                                     </div>
                                 </div>
                             )}
+                            <div className="space-y-2">
+                                <label htmlFor="descripcion" className="block text-sm font-medium text-foreground">
+                                    Descripción <span className="text-destructive">*</span>
+                                </label>
+                                <textarea
+                                    id="descripcion"
+                                    name="descripcion"
+                                    placeholder="Describe el problema con el mayor detalle posible..."
+                                    rows={4}
+                                    value={formData.descripcion}
+                                    onChange={handleChange}
+                                    required
+                                    className="w-full rounded-lg border border-input bg-white px-4 py-2.5 text-sm placeholder:text-muted-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20 resize-none"
+                                />
+                            </div>
 
                             <div className="space-y-2">
                                 <label className="block text-sm font-medium text-foreground">

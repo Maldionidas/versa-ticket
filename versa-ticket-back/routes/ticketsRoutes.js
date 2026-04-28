@@ -1,8 +1,13 @@
 const express = require("express");
 const router = express.Router();
-const multer = require("multer");
 const path = require("path");
 
+//para cloudinary
+const { storage } = require("../config/cloudinary");
+const multer = require("multer");
+const upload = multer({ storage: storage });
+
+//import de controller
 const ticketsController = require("../controllers/ticketsController");
 
 // Middlewares de Autenticación y Permisos (De tu rama principal)
@@ -11,19 +16,9 @@ const { verifyToken, hasPermission } = require("../middlewares/authMiddleware");
 // Middlewares de Reglas de Negocio (De la rama de Comentarios)
 const { checkTicketNotClosed, checkTicketIsClosed } = require("../middlewares/ticketStatus");
 
-// 1. Configuramos Multer para guardar físicamente en la carpeta 'uploads'
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, "uploads/") 
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
-  }
-});
-
-const upload = multer({ storage: storage });
-// ruta para cerrar con firma
+// 1. ruta para cerrar con firma y subir a cloudinary
+router.post('/', verifyToken, upload.array('archivos', 5), ticketsController.createTicket);
+// ruta para cerrar con firma y subir a cloudinary
 router.put('/:id/firmar', verifyToken, ticketsController.closeTicketSign);
 // 2. EL CANDADO PRINCIPAL
 // Exige que el usuario tenga un token válido para acceder a cualquier ruta
@@ -34,8 +29,6 @@ router.get("/assigned", ticketsController.getAssignedTickets);
 router.get("/", ticketsController.getTickets);
 router.get("/:id", ticketsController.getTicketById);
 
-// 4. CREACIÓN DE TICKETS (Con soporte para archivos)
-router.post("/", upload.array("archivos", 5), ticketsController.createTicket); 
 
 // 5. ACTUALIZACIÓN DE TICKETS
 // Cadena de seguridad: Token Válido -> ¿Tiene Permiso de Update? -> ¿El ticket NO está cerrado? -> Controlador
