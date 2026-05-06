@@ -8,6 +8,7 @@ exports.getGeneralStats = async (req, res) => {
         let stats;
         let commentsStats;
         let totalUsers = 0;
+        let mttr = 0; // Mean Time To Resolution (Tiempo Promedio de Resolución)
         
         if (userRole === 2 || userRole === "Administrador") {
             // ADMIN
@@ -26,6 +27,11 @@ exports.getGeneralStats = async (req, res) => {
             commentsStats = await sql`
                 SELECT COUNT(*)::int as total_comentarios
                 FROM comments
+            `;
+            mttrStats = await sql`
+                SELECT COALESCE(ROUND(AVG(EXTRACT(EPOCH FROM (fecha_cierre - fecha_creacion)) / 3600)::numeric, 2), 0) AS mttr
+                FROM tickets
+                WHERE estado_id = 5 AND fecha_cierre IS NOT NULL
             `;
             
         } else if (userRole === 3 || userRole === "Agente") {
@@ -46,6 +52,11 @@ exports.getGeneralStats = async (req, res) => {
                 JOIN tickets t ON c.ticket_id = t.id
                 WHERE t.responsable_id = ${userId}
             `;
+            mttrStats = await sql`
+                SELECT COALESCE(ROUND(AVG(EXTRACT(EPOCH FROM (fecha_cierre - fecha_creacion)) / 3600)::numeric, 2), 0) AS mttr
+                FROM tickets
+                WHERE estado_id = 5 AND fecha_cierre IS NOT NULL AND responsable_id = ${userId}
+            `;
             
         } else {
             // USUARIO NORMAL
@@ -65,11 +76,17 @@ exports.getGeneralStats = async (req, res) => {
                 JOIN tickets t ON c.ticket_id = t.id
                 WHERE t.usuario_id = ${userId}
             `;
+            mttrStats = await sql`
+                SELECT COALESCE(ROUND(AVG(EXTRACT(EPOCH FROM (fecha_cierre - fecha_creacion)) / 3600)::numeric, 2), 0) AS mttr
+                FROM tickets
+                WHERE estado_id = 5 AND fecha_cierre IS NOT NULL AND usuario_id = ${userId}
+            `;
         }
 
         const totalTickets = stats[0]?.total || 0;
         const totalComments = commentsStats[0]?.total_comentarios || 0;
         const avgCommentsPerTicket = totalTickets > 0 ? (totalComments / totalTickets).toFixed(2) : 0;
+        const tiempoMedio = mttrStats[0]?.mttr || 0;
         
         res.json({
             success: true,
@@ -80,7 +97,8 @@ exports.getGeneralStats = async (req, res) => {
                 completedTickets: stats[0]?.completados || 0,
                 totalUsers: userRole === 2 || userRole === "Administrador" ? totalUsers : null,
                 totalComments,
-                avgCommentsPerTicket: parseFloat(avgCommentsPerTicket)
+                avgCommentsPerTicket: parseFloat(avgCommentsPerTicket),
+                mttr: parseFloat(tiempoMedio) // Tiempo Promedio de Resolución en horas
             }
         });
         

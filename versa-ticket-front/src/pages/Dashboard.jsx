@@ -23,7 +23,8 @@ const Dashboard = () => {
     pendingTickets: 0,
     inProgressTickets: 0,
     completedTickets: 0,
-    totalUsers: 0
+    totalUsers: 0,
+    mttr: 0
   });
 
   const [dashboardData, setDashboardData] = useState({
@@ -58,7 +59,8 @@ const Dashboard = () => {
           pendingTickets: statsResponse.data.data?.pendingTickets || 0,
           inProgressTickets: statsResponse.data.data?.inProgressTickets || 0,
           completedTickets: statsResponse.data.data?.completedTickets || 0,
-          totalUsers: statsResponse.data.data?.totalUsers || 0
+          totalUsers: statsResponse.data.data?.totalUsers || 0,
+          mttr: statsResponse.data.data?.mttr || 0
         });
       }
 
@@ -207,7 +209,7 @@ const Dashboard = () => {
         )}
 
         {/* Métricas */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <MetricCard
             title="Tasa de Resolución"
             value={tasaCompletados}
@@ -231,6 +233,15 @@ const Dashboard = () => {
             color="from-blue-500 to-blue-600"
             unit="%"
             description="Rendimiento general"
+          />
+          {/* TARJETA MTTR */}
+          <MetricCard
+            title="Tiempo Medio (MTTR)"
+            value={stats.mttr}
+            icon={Clock}
+            color="from-purple-500 to-purple-600"
+            unit=" hrs"
+            description="Promedio de cierre de tickets"
           />
         </div>
 
